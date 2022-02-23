@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "cpp_bag"
+version = "0.1.0"
+description = ""
+authors = ["KiyoshiMu <mooyewtsing@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+faiss-cpu = "^1.7.2"
+torch = "^1.10.2"
+numpy = "^1.22.2"
+record-keeper = "^0.9.31"
+tensorboard = "^2.8.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.0"
+pytest-cov = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
