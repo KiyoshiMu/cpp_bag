@@ -8,10 +8,15 @@ from pathlib import Path
 from random import sample
 from typing import Counter
 from typing import NamedTuple
+from typing import Sequence
 
+import numpy as np
 import torch
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import Dataset
+from tqdm.contrib.concurrent import process_map
+
+from cpp_bag.io_utils import simplify_label
 
 Lineage = set(
     """\
@@ -34,32 +39,46 @@ LABEL_DIR = Path("D:/code/Docs")
 FEAT_DIR = Path("D:/DATA/feats")
 
 
-def simplify_label(label: str):
-    if "normal" in label:
-        out = "normal"
-    elif "leukemia" in label and "acute" in label:
-        out = "acute leukemia"
-    elif "myelodysplastic syndrome" in label:
-        out = "myelodysplastic syndrome"
-    elif "plasma" in label:
-        out = "plasma"
-    elif "lymphoproliferative disorder" in label:
-        out = "lymphoproliferative disorder"
-    else:
-        out = "other"
-    return out
+class Subset(Dataset):
+    r"""
+    Subset of a dataset at specified indices.
+
+    Args:
+        dataset (Dataset): The whole Dataset
+        indices (sequence): Indices in the whole set selected for subset
+    """
+
+    def __init__(self, dataset: Dataset, indices: Sequence[int]) -> None:
+        self.dataset = dataset
+        self.indices = indices
+        self.labels = dataset.labels[indices]
+        self.targets = dataset.targets[indices]
+        self.slide_names = dataset.slide_names[indices]
+
+    def __getitem__(self, idx):
+        if isinstance(idx, list):
+            return self.dataset[[self.indices[i] for i in idx]]
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
 
 
 class CustomImageDataset(Dataset):
     def __init__(self, feat_dir: Path, label_dir: Path, bag_size=256):
         _slides = [p for p in feat_dir.glob("*.json")]
-        _p_cells = [
-            (p, cells) for p in _slides if len(cells := self._load_feats(p)) > 256
-        ]
-        _slide_names = [p.stem for p, _ in _p_cells]
-        _labels = [self._load_doc(label_dir / f"{name}.json") for name in _slide_names]
+        _cells = process_map(self._load_feats, _slides)
+        _p_cells = [(p, cells) for p, cells in zip(_slides, _cells) if len(cells) > 256]
+        _slide_names = np.array([p.stem for p, _ in _p_cells])
+        _labels = np.array(
+            [self._load_doc(label_dir / f"{name}.json") for name in _slide_names],
+        )
+        _simple_labels = np.array([simplify_label(l) for l in _labels])
+        keep_indices = [i for i, l in enumerate(_simple_labels) if l != "other"]
+        self.slide_names = _slide_names[keep_indices]
+        self.labels = _labels[keep_indices]
         self.le = LabelEncoder()
-        self.targets = self.le.fit_transform(_labels)
+        self.targets = self.le.fit_transform(_simple_labels[keep_indices])
         self.slide_portion: list[dict[str, int]] = [
             self._mk_portion([cell.label for cell in cells], bag_size)
             for _, cells in _p_cells
@@ -78,13 +97,20 @@ class CustomImageDataset(Dataset):
             feats = [
                 cell
                 for info in json.load(f)
-                if (cell := CellInstance(*info)).label in Lineage
+                if (
+                    cell := CellInstance(
+                        name=info[0],
+                        label=info[1],
+                        feature=info[2][:256],
+                    )
+                ).label
+                in Lineage
             ]
             return feats
 
     def _load_doc(self, doc_path):
         with open(doc_path, "r") as f:
-            return simplify_label(json.load(f)["tags"])
+            return json.load(f)["tags"]
 
     def _mk_portion(self, labels: list[str], size: int):
         assert len(labels) >= size, "Not enough cells"
