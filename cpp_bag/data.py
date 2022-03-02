@@ -74,11 +74,10 @@ class CustomImageDataset(Dataset):
             [self._load_doc(label_dir / f"{name}.json") for name in _slide_names],
         )
         _simple_labels = np.array([simplify_label(l) for l in _labels])
-        keep_indices = [i for i, l in enumerate(_simple_labels) if l != "other"]
-        self.slide_names = _slide_names[keep_indices]
-        self.labels = _labels[keep_indices]
+        self.slide_names = _slide_names
+        self.labels = _labels
         self.le = LabelEncoder()
-        self.targets = self.le.fit_transform(_simple_labels[keep_indices])
+        self.targets = self.le.fit_transform(_simple_labels)
         self.slide_portion: list[dict[str, int]] = [
             self._mk_portion([cell.label for cell in cells], bag_size)
             for _, cells in _p_cells

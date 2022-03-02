@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
-import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
 from torch import nn
@@ -85,9 +83,9 @@ def encoder_training(train_ds, val_ds, in_dim=256, dst_dir=Path("."), num_epochs
         num_workers=8,
         batch_size=64,
         k=None,
-        patience=20,
+        patience=10,
     )
     task.run(num_epochs)
-    model_path = str(dst_dir / "pool.pth")
+    model_path = str(dst_dir / f"pool-{task.timestamp}.pth")
     task.save_model(model_path)
     return model_path

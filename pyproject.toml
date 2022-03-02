@@ -11,6 +11,7 @@ torch = "^1.10.2"
 numpy = "^1.22.2"
 record-keeper = "^0.9.31"
 tensorboard = "^2.8.0"
+plotly = "^5.6.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0"
