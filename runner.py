@@ -11,6 +11,7 @@ from cpp_bag.embed import ds_embed
 from cpp_bag.embed import ds_project
 from cpp_bag.model import BagPooling
 from cpp_bag.model import encoder_training
+from cpp_bag.performance import graph
 from cpp_bag.performance import performance
 
 
@@ -85,4 +86,5 @@ def plotter():
 
 if __name__ == "__main__":
     # runner()
-    plotter()
+    # plotter()
+    graph("data/train_pool.pkl", "data/val_pool.pkl", mark="pool")
