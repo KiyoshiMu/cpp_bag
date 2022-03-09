@@ -5,17 +5,23 @@ description = ""
 authors = ["KiyoshiMu <mooyewtsing@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
-faiss-cpu = "^1.7.2"
-torch = "^1.10.2"
-numpy = "^1.22.2"
-record-keeper = "^0.9.31"
-tensorboard = "^2.8.0"
-plotly = "^5.6.0"
+python = ">=3.9,<3.11"
+faiss-cpu = ">=1.7.2"
+torch = ">=1.10.2"
+numpy = ">=1.18"
+record-keeper = ">=0.9.31"
+tensorboard = ">=2.8.0"
+plotly = ">=5.6.0"
+scikit-learn = ">=1.0.2"
+numba = ">=0.55.1"
+scipy = "^1.8.0"
+umap-learn = ">=0.5.2"
+pytorch-metric-learning = ">=1.2.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0"
 pytest-cov = "^3.0.0"
+pre-commit = "^2.17.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

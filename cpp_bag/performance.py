@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,13 @@ from cpp_bag.plot import arr_project
 
 TEMPLATE = "plotly_white"
 FONT = "Arial"
+
+
+def load_size(fp="data/slide_size.csv"):
+    with open(fp, "r") as f:
+        reader = csv.reader(f)
+        next(reader)
+        return {row[0]: int(row[1]) for row in reader}
 
 
 def graph(train_pkl_p, val_pkl_p, mark="pool", dst=Path(".")):
@@ -45,13 +53,16 @@ def graph(train_pkl_p, val_pkl_p, mark="pool", dst=Path(".")):
     ]
     preds = knn.predict(val_embed)
     val_labels = [simplify_label(l) for l in val["labels"]]
+    sizes = load_size()
+    val_names = val["index"]
     plot_df = pd.DataFrame(
         {
             "D1": projection[:, 0],
             "D2": projection[:, 1],
             "label": val_labels,
             "full_label": val["labels"],
-            "index": val["index"],
+            "index": val_names,
+            "cell_count": [sizes[n] for n in val_names],
             "pred": preds,
             "prob_top0": prob_top0,
             "prob_top1": prob_top1,
@@ -68,7 +79,14 @@ def graph(train_pkl_p, val_pkl_p, mark="pool", dst=Path(".")):
         color="label",
         hover_name="index",
         symbol="correct",
-        hover_data=["pred", "prob_top0", "prob_top1", "prob_top2", "full_label"],
+        hover_data=[
+            "pred",
+            "prob_top0",
+            "prob_top1",
+            "prob_top2",
+            "full_label",
+            "cell_count",
+        ],
     )
     fig.update_xaxes(showticklabels=False)
     fig.update_yaxes(showticklabels=False)
