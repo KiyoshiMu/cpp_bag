@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import Dataset
-from tqdm.contrib.concurrent import process_map
+from tqdm.contrib.concurrent import thread_map
 
 from cpp_bag.io_utils import simplify_label
 
@@ -67,7 +67,7 @@ class Subset(Dataset):
 class CustomImageDataset(Dataset):
     def __init__(self, feat_dir: Path, label_dir: Path, bag_size=256):
         _slides = [p for p in feat_dir.glob("*.json")]
-        _cells = process_map(self._load_feats, _slides)
+        _cells = thread_map(self._load_feats, _slides)
         _p_cells = [(p, cells) for p, cells in zip(_slides, _cells) if len(cells) > 256]
         _slide_names = np.array([p.stem for p, _ in _p_cells])
         _labels = np.array(

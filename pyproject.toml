@@ -17,6 +17,7 @@ numba = ">=0.55.1"
 scipy = "^1.8.0"
 umap-learn = ">=0.5.2"
 pytorch-metric-learning = ">=1.2.0"
+tqdm = "^4.63.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0"

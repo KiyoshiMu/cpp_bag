@@ -127,18 +127,20 @@ def performance(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
         dump_metric(y_true, y_pred, unique_labels, mark="dummy")
 
 
-def dump_metric(y_true, y_pred, labels, mark="pool"):
+def dump_metric(y_true, y_pred, unique_labels, mark="pool", to_csv=True):
     precision, recall, fscore, _ = precision_recall_fscore_support(
         y_true,
         y_pred,
-        labels=labels,
+        labels=unique_labels,
     )
     print(precision, recall, fscore)
-    metric_df = pd.DataFrame(
-        dict(precision=precision, recall=recall, fscore=fscore),
-        index=labels,
-    )
-    metric_df.to_csv(f"data/{mark}_metric.csv")
+    if to_csv:
+        metric_df = pd.DataFrame(
+            dict(precision=precision, recall=recall, fscore=fscore),
+            index=unique_labels,
+        )
+
+        metric_df.to_csv(f"data/{mark}_metric.csv")
 
 
 if __name__ == "__main__":
