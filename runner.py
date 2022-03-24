@@ -11,11 +11,10 @@ from cpp_bag.embed import ds_embed
 from cpp_bag.embed import ds_project
 from cpp_bag.model import BagPooling
 from cpp_bag.model import encoder_training
-from cpp_bag.performance import graph
-from cpp_bag.performance import performance
+from cpp_bag.performance import performance_measure
 
 
-def runner():
+def train_model():
     dataset = data.CustomImageDataset(data.FEAT_DIR, data.LABEL_DIR, 256)
     size = len(dataset)
     print("size:", size)
@@ -30,10 +29,11 @@ def runner():
         json.dump(dict(train=_train_set.indices, val=_val_set.indices), f)
     train_set = data.Subset(dataset, _train_set.indices)
     val_set = data.Subset(dataset, _val_set.indices)
-    encoder_training(train_set, val_set, num_epochs=250)
+    model_path = encoder_training(train_set, val_set, num_epochs=100)
+    return model_path
 
 
-def plotter():
+def plotter(model_path: str):
     dataset = data.CustomImageDataset(data.FEAT_DIR, data.LABEL_DIR, 256)
     size = len(dataset)
     print("size:", size)
@@ -44,8 +44,7 @@ def plotter():
     val_set = data.Subset(dataset, val_indices)
     train_set = data.Subset(dataset, train_indices)
 
-    mp = "pool-1645931523737.pth"
-    model = BagPooling.from_checkpoint(mp, in_dim=256)
+    model = BagPooling.from_checkpoint(model_path, in_dim=256)
     embed_func = lambda ds: ds_embed(ds, model)
     train_pkl_dst, _ = ds_project(
         train_set,
@@ -59,15 +58,8 @@ def plotter():
         Path("data"),
         name_mark="val",
     )
-    performance(train_pkl_dst, val_pkl_dst, mark="pool", random_base=True)
+    performance_measure(train_pkl_dst, val_pkl_dst, mark="pool", random_base=True)
 
-    # train_size = int(size * 0.7)
-    # val_size = size - train_size
-    # _train_set, _val_set = torch.utils.data.random_split(
-    #     dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42)
-    # )
-    # train_set = data.Subset(dataset, _train_set.indices)
-    # val_set = data.Subset(dataset, _val_set.indices)
     avg_func = lambda ds: ds_avg(ds)
     train_avg_pkl_dst, _ = ds_project(
         train_set,
@@ -81,10 +73,10 @@ def plotter():
         Path("data"),
         name_mark="val_avg",
     )
-    performance(train_avg_pkl_dst, val_avg_pkl_dst, mark="avg")
+    performance_measure(train_avg_pkl_dst, val_avg_pkl_dst, mark="avg")
 
 
 if __name__ == "__main__":
-    # runner()
-    # plotter()
-    graph("data/train_pool.pkl", "data/val_pool.pkl", mark="pool")
+    model_path = train_model()
+    plotter(model_path)
+    # slide_vectors("data/train_pool.pkl", "data/val_pool.pkl", mark="pool")

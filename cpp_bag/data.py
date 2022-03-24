@@ -65,10 +65,20 @@ class Subset(Dataset):
 
 
 class CustomImageDataset(Dataset):
-    def __init__(self, feat_dir: Path, label_dir: Path, bag_size=256):
+    def __init__(
+        self,
+        feat_dir: Path,
+        label_dir: Path,
+        bag_size=256,
+        cell_threshold=300,
+    ):
         _slides = [p for p in feat_dir.glob("*.json")]
         _cells = thread_map(self._load_feats, _slides)
-        _p_cells = [(p, cells) for p, cells in zip(_slides, _cells) if len(cells) > 256]
+        _p_cells = [
+            (p, cells)
+            for p, cells in zip(_slides, _cells)
+            if len(cells) >= cell_threshold
+        ]
         _slide_names = np.array([p.stem for p, _ in _p_cells])
         _labels = np.array(
             [self._load_doc(label_dir / f"{name}.json") for name in _slide_names],

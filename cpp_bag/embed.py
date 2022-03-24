@@ -6,15 +6,15 @@ from typing import Optional
 
 import numpy as np
 import torch
+from torch.utils.data import Dataset
 
-from cpp_bag.data import CustomImageDataset
 from cpp_bag.io_utils import pkl_dump
 from cpp_bag.plot import make_plot
 
 
 def ds_project(
-    ds: CustomImageDataset,
-    embed_func: Callable[[CustomImageDataset], np.ndarray],
+    ds: Dataset,
+    embed_func: Callable[[Dataset], np.ndarray],
     dst_dir=Path("."),
     name_mark="val_",
     resample_times=16,
@@ -30,7 +30,7 @@ def ds_project(
     return pkl_dst, fig
 
 
-def ds_embed(ds: CustomImageDataset, model):
+def ds_embed(ds: Dataset, model):
     model.eval()
     dataloder = torch.utils.data.DataLoader(ds, batch_size=64, shuffle=False)
     embed: Optional[torch.Tensor] = None
@@ -43,6 +43,6 @@ def ds_embed(ds: CustomImageDataset, model):
     return embed.numpy() if embed is not None else None
 
 
-def ds_avg(ds: CustomImageDataset):
+def ds_avg(ds: Dataset):
     avg_pool = np.array([feat.mean(dim=0).numpy() for (feat, _) in ds])
     return avg_pool

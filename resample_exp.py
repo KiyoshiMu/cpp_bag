@@ -52,11 +52,14 @@ def embed_diff(resample_times=10):
     unique_labels = sorted(set(labels))
 
     resample_preds = []
+    slide_names = []
     for i in range(resample_times):
         val_pkl_p = Path("data/resample/val-{}_pool.pkl".format(i))
         test = pkl_load(val_pkl_p)
         pred = knn.predict(test["embed_pool"])
         resample_preds.append(pred)
+        if i == 0:
+            slide_names = test["index"]
     y_true = [simplify_label(l) for l in test["labels"]]
     resample_preds_arr = np.array(resample_preds)
     entropy_list = []
@@ -74,6 +77,7 @@ def embed_diff(resample_times=10):
     df.to_csv("data/resample/resample_preds.csv")
     df_pred = pd.DataFrame(
         dict(
+            slide_names=slide_names,
             is_correct=is_correct,
             entropy=entropy_list,
             pred=vote_preds,

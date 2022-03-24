@@ -17,14 +17,17 @@ import pandas as pd
 def check():
     ref = pd.read_csv("data/slide_size.csv")
     df = pd.read_csv("data/metaA.csv")
-    meet_req = [f"{n}.tif" for n in ref.loc[ref["cell_size"] >= 2000, "slide"]]
+    meet_req = [f"{n}.tif" for n in ref.loc[ref["cell_size"] >= 1000, "slide"]]
     extra_df = df.loc[
         (df["tiff.XResolution"] == 50000) & (df["filename"].str.contains("AS"))
     ].loc[:, ["filename", "tiff.XResolution"]]
-    extra_df.loc[~extra_df["filename"].isin(meet_req)].to_csv(
+    extra_df = extra_df.loc[~extra_df["filename"].isin(meet_req)]
+    extra_df.to_csv(
         "data/extra.csv",
         index=False,
     )
+    with open("data/extra.json", "w") as f:
+        json.dump([n.replace(".tif", "") for n in extra_df["filename"]], f)
 
 
 def list_names():
@@ -37,4 +40,4 @@ def list_names():
 
 
 if __name__ == "__main__":
-    list_names()
+    check()

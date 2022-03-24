@@ -4,15 +4,11 @@ from enum import Enum
 from pathlib import Path
 
 import torch
-from sklearn.model_selection import train_test_split
 from torch import nn
 from torch import Tensor
-from torch.utils.data import Dataset
 
 from .metric_trainer import TrainTask
 from hflayers import HopfieldPooling
-
-TRAIN_SIZE = 0.5
 
 
 class Pooling(Enum):
