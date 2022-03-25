@@ -15,10 +15,7 @@ def plot_entropy():
         color="is_correct",
         hover_data=["pred", "y_true"],
     )
-    fig.update_layout(
-        template=TEMPLATE,
-        font_family="Arial",
-    )
+    fig.update_layout(template=TEMPLATE, font_family="Arial", barmode="overlay")
     fig.write_image("plot_entropy.jpeg", scale=3)
 
 

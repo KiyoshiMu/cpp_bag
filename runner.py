@@ -13,9 +13,21 @@ from cpp_bag.model import BagPooling
 from cpp_bag.model import encoder_training
 from cpp_bag.performance import performance_measure
 
+MARK = "_NO_MK"
+
 
 def train_model():
-    dataset = data.CustomImageDataset(data.FEAT_DIR, data.LABEL_DIR, 256)
+    with_MK = False
+    in_dim = 256
+    all_cells = data.load_cells()
+    dataset = data.CustomImageDataset(
+        data.FEAT_DIR,
+        data.LABEL_DIR,
+        bag_size=256,
+        cell_threshold=300,
+        with_MK=with_MK,
+        all_cells=all_cells,
+    )
     size = len(dataset)
     print("size:", size)
     train_size = int(size * 0.5)
@@ -25,58 +37,71 @@ def train_model():
         [train_size, val_size],
         generator=torch.Generator().manual_seed(42),
     )
-    with open("data/split.json", "w") as f:
+    with open(f"data/split{MARK}.json", "w") as f:
         json.dump(dict(train=_train_set.indices, val=_val_set.indices), f)
     train_set = data.Subset(dataset, _train_set.indices)
     val_set = data.Subset(dataset, _val_set.indices)
-    model_path = encoder_training(train_set, val_set, num_epochs=100)
-    return model_path
+    model_path = encoder_training(
+        train_set,
+        val_set,
+        in_dim=in_dim,
+        num_epochs=250,
+        num_workers=1,
+    )
+    return model_path, dataset
 
 
-def plotter(model_path: str):
-    dataset = data.CustomImageDataset(data.FEAT_DIR, data.LABEL_DIR, 256)
+def plotter(model_path: str, dataset=None):
+    in_dim = 256
+    if dataset is None:
+        dataset = data.CustomImageDataset(data.FEAT_DIR, data.LABEL_DIR, 256)
     size = len(dataset)
     print("size:", size)
-    with open("data/split.json", "r") as f:
+    with open(f"data/split{MARK}.json", "r") as f:
         cache = json.load(f)
         val_indices = cache["val"]
         train_indices = cache["train"]
     val_set = data.Subset(dataset, val_indices)
     train_set = data.Subset(dataset, train_indices)
 
-    model = BagPooling.from_checkpoint(model_path, in_dim=256)
+    model = BagPooling.from_checkpoint(model_path, in_dim=in_dim)
     embed_func = lambda ds: ds_embed(ds, model)
     train_pkl_dst, _ = ds_project(
         train_set,
         embed_func,
         Path("data"),
-        name_mark="train",
+        name_mark=f"train{MARK}",
     )
     val_pkl_dst, _ = ds_project(
         val_set,
         embed_func,
         Path("data"),
-        name_mark="val",
+        name_mark=f"val{MARK}",
     )
-    performance_measure(train_pkl_dst, val_pkl_dst, mark="pool", random_base=True)
+    performance_measure(
+        train_pkl_dst,
+        val_pkl_dst,
+        mark=f"pool{MARK}",
+        random_base=True,
+    )
 
     avg_func = lambda ds: ds_avg(ds)
     train_avg_pkl_dst, _ = ds_project(
         train_set,
         avg_func,
         Path("data"),
-        name_mark="train_avg",
+        name_mark=f"train_avg{MARK}",
     )
     val_avg_pkl_dst, _ = ds_project(
         val_set,
         avg_func,
         Path("data"),
-        name_mark="val_avg",
+        name_mark=f"val_avg{MARK}",
     )
-    performance_measure(train_avg_pkl_dst, val_avg_pkl_dst, mark="avg")
+    performance_measure(train_avg_pkl_dst, val_avg_pkl_dst, mark=f"avg{MARK}")
 
 
 if __name__ == "__main__":
-    model_path = train_model()
-    plotter(model_path)
+    model_path, dataset = train_model()
+    plotter(model_path, dataset=dataset)
     # slide_vectors("data/train_pool.pkl", "data/val_pool.pkl", mark="pool")

@@ -19,7 +19,17 @@ from cpp_bag.performance import dump_metric
 
 
 def resampler(resample_times=10):
-    dataset = data.CustomImageDataset(data.FEAT_DIR, data.LABEL_DIR, 256)
+    with_MK = True
+    in_dim = 256
+    all_cells = data.load_cells()
+    dataset = data.CustomImageDataset(
+        data.FEAT_DIR,
+        data.LABEL_DIR,
+        bag_size=256,
+        cell_threshold=300,
+        with_MK=with_MK,
+        all_cells=all_cells,
+    )
     size = len(dataset)
     print("size:", size)
     with open("data/split.json", "r") as f:
@@ -27,8 +37,8 @@ def resampler(resample_times=10):
         val_indices = cache["val"]
     val_set = data.Subset(dataset, val_indices)
 
-    mp = "pool-1645931523737.pth"
-    model = BagPooling.from_checkpoint(mp, in_dim=256)
+    mp = "pool-1648142022566_MK.pth"
+    model = BagPooling.from_checkpoint(mp, in_dim=in_dim)
     embed_func = lambda ds: ds_embed(ds, model)
     for i in range(resample_times):
         ds_project(
@@ -103,6 +113,6 @@ def embed_diff(resample_times=10):
 
 
 if __name__ == "__main__":
-    resample_times = 10
-    # resampler(resample_times)
+    resample_times = 16
+    resampler(resample_times)
     embed_diff(resample_times)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pickle
 from collections import defaultdict
 from itertools import chain
 from math import ceil
@@ -17,6 +18,8 @@ from torch.utils.data import Dataset
 from tqdm.contrib.concurrent import thread_map
 
 from cpp_bag.io_utils import simplify_label
+from cpp_bag.mk_data import load_mk_feat
+from cpp_bag.mk_data import MK_FEAT_DIR
 
 Lineage = set(
     """\
@@ -64,6 +67,35 @@ class Subset(Dataset):
         return len(self.indices)
 
 
+def dump_cells(feat_dir: Path):
+    slides = [p for p in feat_dir.glob("*.json")]
+    cells = thread_map(_load_cell_feats, slides)
+    with open("data/cells.pkl", "wb") as f:
+        pickle.dump(cells, f)
+
+
+def load_cells():
+    with open("data/cells.pkl", "rb") as f:
+        return pickle.load(f)
+
+
+def _load_cell_feats(feat_path):
+    with open(feat_path, "r") as f:
+        feats = [
+            cell
+            for info in json.load(f)
+            if (
+                cell := CellInstance(
+                    name=info[0],
+                    label=info[1],
+                    feature=info[2][:256],
+                )
+            ).label
+            in Lineage
+        ]
+        return feats
+
+
 class CustomImageDataset(Dataset):
     def __init__(
         self,
@@ -71,13 +103,16 @@ class CustomImageDataset(Dataset):
         label_dir: Path,
         bag_size=256,
         cell_threshold=300,
+        with_MK=True,
+        all_cells=None,
     ):
         _slides = [p for p in feat_dir.glob("*.json")]
-        _cells = thread_map(self._load_feats, _slides)
+        if all_cells is None:
+            all_cells = thread_map(self._load_feats, _slides)
         _p_cells = [
             (p, cells)
-            for p, cells in zip(_slides, _cells)
-            if len(cells) >= cell_threshold
+            for p, cells in zip(_slides, all_cells)
+            if len(cells) > cell_threshold
         ]
         _slide_names = np.array([p.stem for p, _ in _p_cells])
         _labels = np.array(
@@ -94,12 +129,22 @@ class CustomImageDataset(Dataset):
         ]
         print("\nslide_portion:", self.slide_portion[:3])
         self.features = [
-            torch.as_tensor([cell.feature for cell in cells]) for _, cells in _p_cells
+            torch.as_tensor([cell.feature for cell in cells], dtype=torch.float32)
+            for _, cells in _p_cells
         ]
         self.cell_groups = [
             self._group_by_label([cell.label for cell in cells])
             for _, cells in _p_cells
         ]
+        self.with_MK = with_MK
+        if with_MK:
+            self.MK_features = [
+                torch.as_tensor(
+                    load_mk_feat(MK_FEAT_DIR / f"{slide_name}.json"),
+                    dtype=torch.float32,
+                )
+                for slide_name in _slide_names
+            ]
 
     def _load_feats(self, feat_path):
         with open(feat_path, "r") as f:
@@ -161,7 +206,11 @@ class CustomImageDataset(Dataset):
             0,
             torch.as_tensor(self._sample_idx(slide_portion, group)),
         )
-        return feature_bag, label
+        if self.with_MK:
+            feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
+        else:
+            feature = feature_bag
+        return feature, label
 
     def _sample_idx(self, slide_portion: dict[str, int], group: dict[str, list[int]]):
 

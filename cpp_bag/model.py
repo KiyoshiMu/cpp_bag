@@ -67,7 +67,14 @@ class BagPooling(nn.Module):
         return m
 
 
-def encoder_training(train_ds, val_ds, in_dim=256, dst_dir=Path("."), num_epochs=50):
+def encoder_training(
+    train_ds,
+    val_ds,
+    in_dim=256,
+    dst_dir=Path("."),
+    num_epochs=50,
+    num_workers=1,
+):
     """
     Train the encoder model.
     """
@@ -76,7 +83,7 @@ def encoder_training(train_ds, val_ds, in_dim=256, dst_dir=Path("."), num_epochs
         train_ds,
         val_ds,
         model,
-        num_workers=8,
+        num_workers=num_workers,
         batch_size=64,
         k=None,
         patience=10,

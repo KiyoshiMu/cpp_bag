@@ -38,7 +38,6 @@ def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
             labels,
         )
         y_pred = dummy.predict(test["embed_pool"])
-        print("dummy", y_pred)
         dump_metric(y_true, y_pred, unique_labels, mark="dummy")
 
 
