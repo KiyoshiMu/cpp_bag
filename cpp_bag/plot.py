@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -146,7 +147,9 @@ def slide_vectors(
     train = pkl_load(train_pkl_p)
     refer_embed = train["embed_pool"]
     labels = [simplify_label(l) for l in train["labels"]]
-    knn = KNeighborsClassifier(n_neighbors=5, weights="distance").fit(
+    n_neighbors = round(math.sqrt(len(refer_embed)))
+    print(f"n_neighbors: {n_neighbors}")
+    knn = KNeighborsClassifier(n_neighbors=n_neighbors, weights="distance").fit(
         refer_embed,
         labels,
     )
