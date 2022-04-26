@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import math
 
 import pandas as pd
 from sklearn.dummy import DummyClassifier
@@ -23,18 +24,21 @@ def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
     test = pkl_load(val_pkl_p)
     labels = [simplify_label(l) for l in train["labels"]]
     unique_labels = sorted(set(labels))
-    knn = KNeighborsClassifier(n_neighbors=5, weights="distance").fit(
-        train["embed_pool"],
+    refer_embed = train["embed_pool"]
+    n_neighbors = round(math.sqrt(len(refer_embed)))
+    print(f"n_neighbors: {n_neighbors}")
+    knn = KNeighborsClassifier(n_neighbors=n_neighbors, weights="distance").fit(
+        refer_embed,
         labels,
     )
-    print(train["embed_pool"].shape)
+    print(refer_embed.shape)
     y_pred = knn.predict(test["embed_pool"])
     y_true = [simplify_label(l) for l in test["labels"]]
     dump_metric(y_true, y_pred, unique_labels, mark=mark)
 
     if random_base:
         dummy = DummyClassifier(strategy="stratified", random_state=42).fit(
-            train["embed_pool"],
+            refer_embed,
             labels,
         )
         y_pred = dummy.predict(test["embed_pool"])
