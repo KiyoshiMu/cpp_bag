@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import pickle
+from collections import Counter
 from collections import defaultdict
 from itertools import chain
 from math import ceil
 from pathlib import Path
 from random import sample
-from typing import Counter
 from typing import NamedTuple
+from typing import Optional
 from typing import Sequence
 
 import numpy as np
@@ -30,6 +31,8 @@ Histiocyte,Mast_cell""".split(
         ",",
     ),
 )
+
+MaskMap = dict[str, torch.BoolTensor]
 
 
 class CellInstance(NamedTuple):
@@ -104,7 +107,7 @@ class CustomImageDataset(Dataset):
         bag_size=256,
         cell_threshold=300,
         with_MK=True,
-        all_cells=None,
+        all_cells: Optional[list[list[CellInstance]]] = None,
     ):
         _slides = [p for p in feat_dir.glob("*.json")]
         if all_cells is None:
@@ -128,15 +131,18 @@ class CustomImageDataset(Dataset):
             for _, cells in _p_cells
         ]
         print("\nslide_portion:", self.slide_portion[:3])
+        # index is used to map cell_groups to features
+        self.cells = [cells for _, cells in _p_cells]
         self.features = [
             torch.as_tensor([cell.feature for cell in cells], dtype=torch.float32)
-            for _, cells in _p_cells
+            for cells in self.cells
         ]
         self.cell_groups = [
-            self._group_by_label([cell.label for cell in cells])
-            for _, cells in _p_cells
+            self._group_by_label([cell.label for cell in cells]) for cells in self.cells
         ]
         self.with_MK = with_MK
+        self.mask_map: Optional[MaskMap] = None
+        self.mask_tensor = torch.zeros_like(self.features[0], dtype=torch.float32)
         if with_MK:
             self.MK_features = [
                 torch.as_tensor(
@@ -195,6 +201,16 @@ class CustomImageDataset(Dataset):
 
     def __len__(self):
         return len(self.targets)
+
+    def _get_features_by_idx(self, idx: int):
+        tensor = self.features[idx]
+        if self.mask_map is None:
+            return tensor
+        else:
+            copy = tensor.clone()
+            mask = self.mask_map[self.slide_names[idx]]
+            copy[mask] = self.mask_tensor
+            return copy
 
     def __getitem__(self, idx):
 
