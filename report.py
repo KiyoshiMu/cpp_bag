@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
+from typing import NamedTuple
 from typing import TypedDict
 
 import pandas as pd
 
 from cpp_bag.io_utils import json_load
+
+
+class AdjustFactor(NamedTuple):
+    tpr: float
+    fnr: float
 
 
 class Synopsis(TypedDict):
@@ -119,7 +125,9 @@ def review_adjust():
     print(f"Number: {population}")
     print(f"Positive: {positive}")
     print(f"Negative: {negative}")
-    print(f"BERT correct: {bert_correct}, Error rate: {1 - bert_correct/population}")
+    print(
+        f"BERT correct: {bert_correct} ({bert_correct/population:.3f}), Error rate: {1 - bert_correct/population}",
+    )
     print(f"Cell Bag correct: {bag_correct}, Error rate: {1 - bag_correct/population}")
 
     print(f"False positive: {false_positive}")
@@ -134,17 +142,23 @@ def review_adjust():
     adjust_positive = positive * tpr + negative * fnr
     adjust_negative = positive * fpr + negative * tnr
     assert adjust_positive + adjust_negative == population
-    arr_after = adjust_positive / population
+    adjust_factor = AdjustFactor(tpr=tpr, fnr=fnr)
+    arr_after = adjust_arr(positive, negative, adjust_factor)
     err_after = adjust_negative / population
     print(f"Acc before: {acc_before:.3f}, err before: {err_before:.3f}")
     print(f"Acc after: {arr_after:.3f}, err after: {err_after:.3f}")
-    acc_adjust_factor = arr_after / acc_before
-    print(f"Acc adjust factor: {acc_adjust_factor}")
 
-    return acc_adjust_factor
+    return adjust_factor
 
 
-def main(acc_adjust_factor=1.0, export=False):
+def adjust_arr(positive, negative, adjust_factor: AdjustFactor):
+
+    adjust_positive = positive * adjust_factor.tpr + negative * adjust_factor.fnr
+    arr_after = adjust_positive / (positive + negative)
+    return arr_after
+
+
+def main(adjust_factor: AdjustFactor = None, export=False):
     accs = []
     w_accs = []
     dummy_accs = []
@@ -153,11 +167,23 @@ def main(acc_adjust_factor=1.0, export=False):
         MARK = str(trial)
         DST = Path("data") / MARK
         ret = json_load(DST / f"{MARK}_slide_summary.json")
-        accs.append(ret["correct"][1] * acc_adjust_factor)
+        if adjust_factor is None:
+            accs.append(ret["correct"][1])
+        else:
+            positive = ret["correct"][0]
+            negative = ret["incorrect"][0]
+            adjust_acc = adjust_arr(positive, negative, adjust_factor)
+            accs.append(adjust_acc)
         w_accs.append(ret["weighted_acc"])
 
         dummy_ret = json_load(DST / f"{MARK}_slide_dummy_summary.json")
-        dummy_accs.append(dummy_ret["correct"][1] * acc_adjust_factor)
+        if adjust_factor is None:
+            dummy_accs.append(dummy_ret["correct"][1])
+        else:
+            positive = dummy_ret["correct"][0]
+            negative = dummy_ret["incorrect"][0]
+            adjust_acc = adjust_arr(positive, negative, adjust_factor)
+            dummy_accs.append(adjust_acc)
         w_dummy_accs.append(dummy_ret["weighted_acc"])
     df = pd.DataFrame(
         dict(acc=accs, w_acc=w_accs, dummy_acc=dummy_accs, w_dummy_acc=w_dummy_accs),
@@ -169,5 +195,5 @@ def main(acc_adjust_factor=1.0, export=False):
 
 if __name__ == "__main__":
     main(export=False)
-    acc_adjust_factor = review_adjust()
-    main(acc_adjust_factor=acc_adjust_factor, export=True)
+    adjust_factor = review_adjust()
+    main(adjust_factor=adjust_factor, export=True)
