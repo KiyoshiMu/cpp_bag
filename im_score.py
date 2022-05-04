@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import json
-import os
 import pickle
 from itertools import chain
 from pathlib import Path
@@ -16,20 +15,23 @@ from typing import Literal
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.cluster import KMeans
 from torch.utils.data import Dataset
 
 from cpp_bag import data
 from cpp_bag.data import CellInstance
-from cpp_bag.data import load_cells
 from cpp_bag.embed import ds_embed
 from cpp_bag.embed import ds_project
+from cpp_bag.io_utils import pkl_load
+from cpp_bag.io_utils import simplify_label
 from cpp_bag.model import BagPooling
-from runner import SPLIT_JSON
+from cpp_bag.performance import create_knn
+from cpp_bag.plot import heat_map
 from runner import WITH_MK
 
-K = 3
+SUBTYPE_K = 2
 
 CellType = Literal[
     "Neutrophil",
@@ -67,14 +69,14 @@ CELL_TYPES: list[CellType] = [
 
 
 class KMeanMask:
-    def __init__(self, k=3) -> None:
+    def __init__(self, k=SUBTYPE_K) -> None:
         self.kmeans = KMeans(n_clusters=k, random_state=42)
 
-    def save(self, path: str) -> None:
+    def save(self, path) -> None:
         with open(path, "wb") as f:
             pickle.dump(self.kmeans, f)
 
-    def load(self, path: str) -> None:
+    def load(self, path) -> None:
         with open(path, "rb") as f:
             self.kmeans = pickle.load(f)
 
@@ -83,12 +85,6 @@ class KMeanMask:
 
     def train(self, X: list[list[float]]) -> None:
         self.kmeans.fit(X)
-
-    @classmethod
-    def from_path(cls, path: str, k=3) -> "KMeanMask":
-        mask = cls(k=k)
-        mask.load(path)
-        return mask
 
 
 class ImScorer:
@@ -108,14 +104,21 @@ class ImScorer:
             all_cells=all_cells,
         )
         self.masks = (
-            masks if masks is not None else {k: KMeanMask() for k in CELL_TYPES}
+            masks
+            if masks is not None
+            else {k: KMeanMask(k=SUBTYPE_K) for k in CELL_TYPES}
         )
 
-    def make_masks(self, sample_size=256, use_cache=True):
+    def make_masks(
+        self,
+        dst: Path,
+        sample_size=256,
+        use_cache=True,
+    ):
         for cell_type, kmean_mask in self.masks.items():
             print(f"{cell_type}")
-            kmean_mask_p = f"mask/{cell_type}_kmean_mask.pkl"
-            if use_cache and os.path.exists(kmean_mask_p):
+            kmean_mask_p = dst / f"{cell_type}_kmean_mask.pkl"
+            if use_cache and kmean_mask_p.exists():
                 kmean_mask.load(kmean_mask_p)
                 continue
 
@@ -175,20 +178,74 @@ class ImScorer:
         return val_pkl_dst
 
 
-def main(model_path: str, split_json_p="data/0/split0.json"):
+class ImAnalyst:
+    def __init__(self, train_pkl_p, val_pkl_p) -> None:
+        train = pkl_load(train_pkl_p)
+        val = pkl_load(val_pkl_p)
+        labels = [simplify_label(l) for l in train["labels"]]
+        refer_embed = train["embed_pool"]
+        self.knn = create_knn(refer_embed, labels)
+        self.classes_ = self.knn.classes_
+        val_embed = val["embed_pool"]
+        self.pred_probs: np.ndarray = self.knn.predict_proba(val_embed)
+        self.pred_labels: np.ndarray = self.knn.predict(val_embed)
+
+    def diff(self, ret_pkl_p):
+        ret = pkl_load(ret_pkl_p)
+        ret_embed = ret["embed_pool"]
+        ret_pred_probs: np.ndarray = self.knn.predict_proba(ret_embed)
+        diff = ret_pred_probs - self.pred_probs
+        diff_df = pd.DataFrame(diff, columns=self.classes_)
+        diff_df["label"] = self.pred_labels
+        return diff_df
+
+    def summary(self, diff_dir: Path):
+        """For each label, how the mask will influence the prediction"""
+        diff_df_csvs = list(diff_dir.glob("*_mask_*.csv"))
+        mask_effect = {}
+        for csv in diff_df_csvs:
+            diff_df = pd.read_csv(csv)
+            diff_mean = diff_df.groupby("label").mean()
+            effects = []
+            for label in self.classes_:
+                effects.append(diff_mean.loc[label, label])
+            mask_name = csv.stem.removeprefix("val_").removesuffix("_pool")
+            mask_effect[mask_name] = list(effects)
+        mask_effect_df = pd.DataFrame(mask_effect, index=self.classes_).transpose()
+        print(mask_effect_df)
+        return mask_effect_df
+
+
+def make_mask_embed(model_path: str, split_json_p="data/0/split0.json"):
     in_dim = 256
     model = BagPooling.from_checkpoint(model_path, in_dim=in_dim)
     embed_func = lambda ds: ds_embed(ds, model)
     scorer = ImScorer(embed_func, None)
-    scorer.make_masks()
+    mask_dir = Path("mask")
+    mask_dir.mkdir(exist_ok=True, parents=True)
+    scorer.make_masks(mask_dir)
     for cell_type in CELL_TYPES:
-        for subtype in range(3):
+        for subtype in range(SUBTYPE_K):
             print(f"{cell_type}_{subtype}")
             try:
                 dst = scorer.run(cell_type, subtype, split_json_p)
                 print(dst)
             except Exception as e:
                 print(e)
+
+
+def diff_mask_embed(ret_dir_p: str, dst=Path("mask/mask_diff")):
+    ret_dir = Path(ret_dir_p)
+    ret_pkls = ret_dir.glob("*.pkl")
+    im_analyst = ImAnalyst("data/0/train0_pool.pkl", "data/0/val0_pool.pkl")
+    dst.mkdir(exist_ok=True, parents=True)
+    for ret_pkl in ret_pkls:
+        print(ret_pkl)
+        diff_df = im_analyst.diff(ret_pkl)
+        fn = ret_pkl.stem
+        diff_df.to_csv(dst / f"{fn}.csv")
+    mask_effect_df = im_analyst.summary(dst)
+    mask_effect_df.to_csv(dst / "mask_effect.csv")
 
 
 def sample_cell_type(cells: list[CellInstance], cell_type: str, sample_size=256):
@@ -201,5 +258,21 @@ def sample_cell_type(cells: list[CellInstance], cell_type: str, sample_size=256)
     return sample(type_cells, sample_size)
 
 
+def mask_effect_heat_map(effect_csv_p):
+    mask_effect_df = pd.read_csv(effect_csv_p, index_col=0)
+    values = mask_effect_df.values * -1
+    # annotation text is the :.3f string of the values
+    annotation_text = values.round(3).astype(str)
+    fig = heat_map(
+        z=values,
+        x=mask_effect_df.columns.to_list(),
+        y=mask_effect_df.index.to_list(),
+        annotation_text=annotation_text,
+    )
+    fig.write_image("mask_effect.png", scale=2)
+
+
 if __name__ == "__main__":
-    main("data/0/pool-1650909062154.pth")
+    make_mask_embed("data/0/pool-1650909062154.pth")
+    diff_mask_embed("mask/result")
+    mask_effect_heat_map("mask/mask_diff/mask_effect.csv")
