@@ -32,7 +32,9 @@ Histiocyte,Mast_cell""".split(
     ),
 )
 
-MaskMap = dict[str, torch.BoolTensor]
+MaskMap = dict[str, torch.Tensor]
+
+CELL_FEATURE_SIZE = 256
 
 
 class CellInstance(NamedTuple):
@@ -142,7 +144,7 @@ class CustomImageDataset(Dataset):
         ]
         self.with_MK = with_MK
         self.mask_map: Optional[MaskMap] = None
-        self.mask_tensor = torch.zeros_like(self.features[0], dtype=torch.float32)
+        self.mask_tensor = torch.zeros(CELL_FEATURE_SIZE, dtype=torch.float32)
         if with_MK:
             self.MK_features = [
                 torch.as_tensor(
@@ -161,7 +163,7 @@ class CustomImageDataset(Dataset):
                     cell := CellInstance(
                         name=info[0],
                         label=info[1],
-                        feature=info[2][:256],
+                        feature=info[2][:CELL_FEATURE_SIZE],
                     )
                 ).label
                 in Lineage
@@ -218,7 +220,7 @@ class CustomImageDataset(Dataset):
         slide_portion = self.slide_portion[idx]
         group = self.cell_groups[idx]
         feature_bag = torch.index_select(
-            self.features[idx],
+            self._get_features_by_idx(idx),
             0,
             torch.as_tensor(self._sample_idx(slide_portion, group)),
         )
