@@ -31,7 +31,6 @@ from cpp_bag.performance import create_knn
 from cpp_bag.plot import heat_map
 from runner import WITH_MK
 
-SUBTYPE_K = 2
 
 CellType = Literal[
     "Neutrophil",
@@ -69,7 +68,7 @@ CELL_TYPES: list[CellType] = [
 
 
 class KMeanMask:
-    def __init__(self, k=SUBTYPE_K) -> None:
+    def __init__(self, k=3) -> None:
         self.kmeans = KMeans(n_clusters=k, random_state=42)
 
     def save(self, path) -> None:
@@ -92,6 +91,7 @@ class ImScorer:
         self,
         embed_func: Callable[[Dataset], np.ndarray],
         masks: Optional[dict[CellType, KMeanMask]],
+        subtype_k: int = 3,
     ) -> None:
         self.embed_func = embed_func
         all_cells = data.load_cells()
@@ -106,7 +106,7 @@ class ImScorer:
         self.masks = (
             masks
             if masks is not None
-            else {k: KMeanMask(k=SUBTYPE_K) for k in CELL_TYPES}
+            else {k: KMeanMask(k=subtype_k) for k in CELL_TYPES}
         )
 
     def make_masks(
@@ -138,10 +138,10 @@ class ImScorer:
         X = [cell.feature for cell in cells]
         return mask.predict(X)
 
-    def run(self, cell_type: CellType, subtype: int, split_json_p: str):
+    def run(self, cell_type: CellType, subtype: int, split_json_p: str, dst: Path):
         slide_names = self.dataset.slide_names
         mask_map = {}
-        mask_dst = Path("mask/result")
+        mask_dst = dst / "result"
         mask_dst.mkdir(exist_ok=True, parents=True)
         for slide_idx, name in enumerate(slide_names):
             slide_cells = self.dataset.cells[slide_idx]
@@ -150,17 +150,18 @@ class ImScorer:
                 for idx, cell in enumerate(slide_cells)
                 if cell.label == cell_type
             ]
-            pred_subtypes = self._predict_mask(
-                self.masks[cell_type],
-                [cell[1] for cell in target_cells],
-            )
             mask_flag = np.zeros(len(slide_cells), dtype=bool)
-            mask_idx = [
-                idx
-                for ((idx, _), pred_subtype) in zip(target_cells, pred_subtypes)
-                if pred_subtype == subtype
-            ]
-            mask_flag[mask_idx] = True
+            if len(target_cells) > 0:
+                pred_subtypes = self._predict_mask(
+                    self.masks[cell_type],
+                    [cell[1] for cell in target_cells],
+                )
+                mask_idx = [
+                    idx
+                    for ((idx, _), pred_subtype) in zip(target_cells, pred_subtypes)
+                    if pred_subtype == subtype
+                ]
+                mask_flag[mask_idx] = True
             mask_map[name] = torch.as_tensor(mask_flag, dtype=torch.bool)
         self.dataset.mask_map = mask_map
 
@@ -174,6 +175,34 @@ class ImScorer:
             self.embed_func,
             mask_dst,
             name_mark=f"val_mask_{cell_type}_{subtype}",
+        )
+        return val_pkl_dst
+
+    def run_on_type(self, cell_type: CellType, split_json_p: str, dst: Path):
+        slide_names = self.dataset.slide_names
+        mask_map = {}
+        mask_dst = dst / "result"
+        mask_dst.mkdir(exist_ok=True, parents=True)
+        for slide_idx, name in enumerate(slide_names):
+            slide_cells = self.dataset.cells[slide_idx]
+            mask_idx = [
+                idx for idx, cell in enumerate(slide_cells) if cell.label == cell_type
+            ]
+            mask_flag = np.zeros(len(slide_cells), dtype=bool)
+            mask_flag[mask_idx] = True
+            mask_map[name] = torch.as_tensor(mask_flag, dtype=torch.bool)
+        self.dataset.mask_map = mask_map
+
+        with open(split_json_p, "r") as f:
+            cache = json.load(f)
+            val_indices = cache["val"]
+            # train_indices = cache["train"]
+        val_set = data.Subset(self.dataset, val_indices)
+        val_pkl_dst, _ = ds_project(
+            val_set,
+            self.embed_func,
+            mask_dst,
+            name_mark=f"val_mask_{cell_type}",
         )
         return val_pkl_dst
 
@@ -216,22 +245,28 @@ class ImAnalyst:
         return mask_effect_df
 
 
-def make_mask_embed(model_path: str, split_json_p="data/0/split0.json"):
+def make_mask_embed(
+    model_path: str,
+    split_json_p="data/0/split0.json",
+    mask_dir=Path("mask"),
+    subtype_k=0,
+):
     in_dim = 256
     model = BagPooling.from_checkpoint(model_path, in_dim=in_dim)
     embed_func = lambda ds: ds_embed(ds, model)
     scorer = ImScorer(embed_func, None)
-    mask_dir = Path("mask")
     mask_dir.mkdir(exist_ok=True, parents=True)
-    scorer.make_masks(mask_dir)
-    for cell_type in CELL_TYPES:
-        for subtype in range(SUBTYPE_K):
-            print(f"{cell_type}_{subtype}")
-            try:
-                dst = scorer.run(cell_type, subtype, split_json_p)
+    if subtype_k == 0:
+        for cell_type in CELL_TYPES:
+            dst = scorer.run_on_type(cell_type, split_json_p, mask_dir)
+            print(dst)
+    else:
+        scorer.make_masks(mask_dir)
+        for cell_type in CELL_TYPES:
+            for subtype in range(subtype_k):
+                print(f"{cell_type}_{subtype}")
+                dst = scorer.run(cell_type, subtype, split_json_p, mask_dir)
                 print(dst)
-            except Exception as e:
-                print(e)
 
 
 def diff_mask_embed(ret_dir_p: str, dst=Path("mask/mask_diff")):
@@ -240,7 +275,7 @@ def diff_mask_embed(ret_dir_p: str, dst=Path("mask/mask_diff")):
     im_analyst = ImAnalyst("data/0/train0_pool.pkl", "data/0/val0_pool.pkl")
     dst.mkdir(exist_ok=True, parents=True)
     for ret_pkl in ret_pkls:
-        print(ret_pkl)
+        # print(ret_pkl)
         diff_df = im_analyst.diff(ret_pkl)
         fn = ret_pkl.stem
         diff_df.to_csv(dst / f"{fn}.csv")
@@ -258,21 +293,37 @@ def sample_cell_type(cells: list[CellInstance], cell_type: str, sample_size=256)
     return sample(type_cells, sample_size)
 
 
-def mask_effect_heat_map(effect_csv_p):
+def mask_effect_heat_map(effect_csv_p, dst):
     mask_effect_df = pd.read_csv(effect_csv_p, index_col=0)
-    values = mask_effect_df.values * -1
+    # values = mask_effect_df.values * -1
     # annotation text is the :.3f string of the values
-    annotation_text = values.round(3).astype(str)
+    # annotation_text = values.round(3).astype(str)
+    labels = mask_effect_df.columns.to_list()
+    mask_names: list[str] = [
+        name.removeprefix("mask_") for name in mask_effect_df.index
+    ]
+    rank_values = []
+    rank = [idx for idx in range(len(mask_names))]
+    annotation_text = []
+    for label in labels:
+        mask_effect = mask_effect_df.loc[:, label] * -1
+        sorted_idx = np.argsort(mask_effect)
+        rank_values.append([mask_effect[idx] for idx in sorted_idx])
+        annotation_text.append([mask_names[idx] for idx in sorted_idx])
     fig = heat_map(
-        z=values,
-        x=mask_effect_df.columns.to_list(),
-        y=mask_effect_df.index.to_list(),
-        annotation_text=annotation_text,
+        z=np.transpose(rank_values),
+        x=labels,
+        y=rank,
+        annotation_text=np.transpose(annotation_text),
     )
-    fig.write_image("mask_effect.png", scale=2)
+    fig.write_image(dst, scale=2)
 
 
 if __name__ == "__main__":
-    make_mask_embed("data/0/pool-1650909062154.pth")
-    diff_mask_embed("mask/result")
-    mask_effect_heat_map("mask/mask_diff/mask_effect.csv")
+    make_mask_embed(
+        "data/0/pool-1650909062154.pth",
+        mask_dir=Path("mask_n0"),
+        subtype_k=0,
+    )
+    diff_mask_embed("mask_n0/result", dst=Path("mask_n0/mask_diff"))
+    mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.png")

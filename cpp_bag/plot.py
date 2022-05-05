@@ -39,6 +39,8 @@ def heat_map(z, x, y, annotation_text):
         font_family="Arial",
         width=1280,
         height=600,
+        yaxis_visible=False,
+        yaxis_showticklabels=False,
     )
     return fig
 
