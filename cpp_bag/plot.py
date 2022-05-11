@@ -17,6 +17,7 @@ from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label
 from cpp_bag.performance import create_knn
 from cpp_bag.performance import dummy_exp
+from cpp_bag.performance import dump_metric
 from cpp_bag.performance import load_size
 from cpp_bag.performance import proba_to_dfDict
 from cpp_bag.performance import top3_summary
@@ -202,9 +203,16 @@ def slide_vectors(
 
     plot_df = pd.DataFrame(_df)
     summary = top3_summary(plot_df)
-    dummy_summary = dummy_exp(refer_embed, labels, val_embed, val_labels)
-    print("summary", summary)
-    print("dummy_summary", dummy_summary)
+    dump_metric(val_labels, preds, classes_, dst / f"{mark}_metric.csv")
+    dummy_summary = dummy_exp(
+        refer_embed,
+        labels,
+        val_embed,
+        val_labels,
+        dst / f"{mark}_dummy_metric.csv",
+    )
+    # print("summary", summary)
+    # print("dummy_summary", dummy_summary)
     json_dump(summary, dst / f"{mark}_slide_summary.json")
     json_dump(dummy_summary, dst / f"{mark}_slide_dummy_summary.json")
     plot_df.to_json(str(dst / f"{mark}.json"), orient="records")
@@ -236,4 +244,114 @@ def slide_vectors(
         height=600,
     )
     fig.write_html(str(dst / f"{mark}umap.html"))
+    return fig
+
+
+def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=False):
+    #  perf_average, perf_err
+
+    performance.sort_values(
+        f"{main_metrics}_mean",
+        inplace=True,
+    )
+    fig = go.Figure()
+    x = performance.index.to_list()
+    marker_symbols = ["square", "x"]
+    # fig.add_shape(
+    #     type="line",
+    #     x0=0.01,
+    #     y0=perf_average,
+    #     x1=0.99,
+    #     y1=perf_average,
+    #     xref="paper",
+    #     line=dict(color="lightgray", width=2, dash="dash"),
+    # )
+    for idx, measure in enumerate(["Precision", "Recall"]):
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=performance[f"{measure}_mean"],
+                error_y=dict(
+                    color="lightgray",
+                    type="data",
+                    array=performance[f"{measure}_std"],
+                    visible=False,
+                ),
+                marker_color="lightgray",
+                marker_symbol=marker_symbols[idx],
+                marker_size=10,
+                mode="markers",
+                name=measure,
+            ),
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=performance[f"{main_metrics}_mean"],
+            error_y=dict(
+                color="lightgray",
+                type="data",
+                array=performance[f"{main_metrics}_std"],
+                visible=True,
+            ),
+            marker_color="blue",
+            mode="markers+text",
+            text=[f"{v:.02f}" for v in performance[f"{main_metrics}_mean"]],
+            marker_size=10,
+            name=main_metrics,
+        ),
+    )
+    if include_random:
+        random_title = "Random"
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=performance[f"{random_title}_mean"],
+                error_y=dict(
+                    color="lightgray",
+                    type="data",
+                    array=performance[f"{random_title}_std"],
+                    visible=False,
+                ),
+                marker_color="pink",
+                mode="markers+text",
+                text=[f"{v:.02f}" for v in performance[f"{random_title}_mean"]],
+                marker_size=10,
+                name=f"{random_title} {main_metrics}",
+            ),
+        )
+    fig.update_traces(textposition="middle right")
+
+    x_loc = len(performance) - 2
+    fig.update_layout(
+        template=TEMPLATE,
+        font_family="Arial",
+        width=1280,
+        height=600,
+        xaxis_title="Label",
+        yaxis_title="Metrics",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        # annotations=[
+        #     dict(
+        #         x=x_loc,
+        #         y=perf_average,
+        #         xref="x",
+        #         yref="y",
+        #         text=f"Micro {y_title}: {perf_average:.03f}±{perf_err:.03f}",
+        #         showarrow=False,
+        #         font=dict(size=15),
+        #     ),
+        # ],
+    )
+    fig.add_annotation(
+        x=1,
+        y=1.05,
+        xref="paper",
+        yref="paper",
+        align="left",
+        text="n=5 independent experiments",
+        showarrow=False,
+    )
     return fig

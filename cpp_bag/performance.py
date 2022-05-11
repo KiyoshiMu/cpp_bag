@@ -43,7 +43,7 @@ def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
     print(refer_embed.shape)
     y_pred = knn.predict(test["embed_pool"])
     y_true = [simplify_label(l) for l in test["labels"]]
-    dump_metric(y_true, y_pred, unique_labels, mark=mark)
+    dump_metric(y_true, y_pred, unique_labels, mark=f"data/{mark}_metric.csv")
 
     if random_base:
         dummy = DummyClassifier(strategy="stratified", random_state=42).fit(
@@ -51,23 +51,23 @@ def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
             labels,
         )
         y_pred = dummy.predict(test["embed_pool"])
-        dump_metric(y_true, y_pred, unique_labels, mark="dummy")
+        dump_metric(y_true, y_pred, unique_labels, mark="data/dummy_metric.csv")
 
 
-def dump_metric(y_true, y_pred, unique_labels, mark="pool", to_csv=True):
+def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):
     precision, recall, fscore, _ = precision_recall_fscore_support(
         y_true,
         y_pred,
         labels=unique_labels,
     )
-    print(precision, recall, fscore)
+    # print(precision, recall, fscore)
     if to_csv:
         metric_df = pd.DataFrame(
             dict(precision=precision, recall=recall, fscore=fscore),
             index=unique_labels,
         )
 
-        metric_df.to_csv(f"data/{mark}_metric.csv")
+        metric_df.to_csv(dst)
 
 
 def cal_weighted_acc(label, *preds):
@@ -133,14 +133,15 @@ def top3_summary(cases):
     return summary
 
 
-def dummy_exp(refer_embed, refer_labels, test_embed, test_labels):
-    dummy = DummyClassifier(strategy="prior", random_state=42).fit(
+def dummy_exp(refer_embed, refer_labels, test_embed, test_labels, dst):
+    dummy = DummyClassifier(strategy="stratified", random_state=42).fit(
         refer_embed,
         refer_labels,
     )
     classes_ = dummy.classes_
     pred_probs = dummy.predict_proba(test_embed)
-    print(pred_probs[0])
+    pred = dummy.predict(test_embed)
+    dump_metric(test_labels, pred, classes_, dst)
     _df = proba_to_dfDict(pred_probs, classes_, test_labels)
     summary = top3_summary(pd.DataFrame(_df))
     return summary
