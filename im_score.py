@@ -18,12 +18,17 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances
+from sklearn.neighbors import NearestCentroid
+from sklearn.preprocessing import minmax_scale
+from sklearn.preprocessing import scale
 from torch.utils.data import Dataset
 
 from cpp_bag import data
 from cpp_bag.data import CellInstance
 from cpp_bag.embed import ds_embed
 from cpp_bag.embed import ds_project
+from cpp_bag.io_utils import json_dump
 from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label
 from cpp_bag.model import BagPooling
@@ -163,7 +168,7 @@ class ImScorer:
                 ]
                 mask_flag[mask_idx] = True
             mask_map[name] = torch.as_tensor(mask_flag, dtype=torch.bool)
-        self.dataset.mask_map = mask_map
+        self.dataset._mask_map = mask_map
 
         with open(split_json_p, "r") as f:
             cache = json.load(f)
@@ -179,20 +184,10 @@ class ImScorer:
         return val_pkl_dst
 
     def run_on_type(self, cell_type: CellType, split_json_p: str, dst: Path):
-        slide_names = self.dataset.slide_names
-        mask_map = {}
         mask_dst = dst / "result"
         mask_dst.mkdir(exist_ok=True, parents=True)
-        for slide_idx, name in enumerate(slide_names):
-            slide_cells = self.dataset.cells[slide_idx]
-            mask_idx = [
-                idx for idx, cell in enumerate(slide_cells) if cell.label == cell_type
-            ]
-            mask_flag = np.zeros(len(slide_cells), dtype=bool)
-            mask_flag[mask_idx] = True
-            mask_map[name] = torch.as_tensor(mask_flag, dtype=torch.bool)
-        self.dataset.mask_map = mask_map
-
+        mask_info = self.dataset.setup_mask(cell_type)
+        json_dump(mask_info, mask_dst / f"{cell_type}_mask_info.json")
         with open(split_json_p, "r") as f:
             cache = json.load(f)
             val_indices = cache["val"]
@@ -207,37 +202,57 @@ class ImScorer:
         return val_pkl_dst
 
 
+class Centroid:
+    def __init__(self, refer_embed, labels):
+        self.clf = NearestCentroid()
+        self.clf.fit(refer_embed, labels)
+        self.centroids_ = self.clf.centroids_
+        self.classes_ = self.clf.classes_
+
+    def predict_proba(self, embed):
+        return pairwise_distances(embed, self.centroids_, metric="cosine")
+
+
 class ImAnalyst:
     def __init__(self, train_pkl_p, val_pkl_p) -> None:
         train = pkl_load(train_pkl_p)
         val = pkl_load(val_pkl_p)
         labels = [simplify_label(l) for l in train["labels"]]
         refer_embed = train["embed_pool"]
-        self.knn = create_knn(refer_embed, labels)
-        self.classes_ = self.knn.classes_
+        # self.measurement = create_knn(refer_embed, labels)
+        self.measurement = Centroid(refer_embed, labels)
+        self.classes_ = self.measurement.classes_
         val_embed = val["embed_pool"]
-        self.pred_probs: np.ndarray = self.knn.predict_proba(val_embed)
-        self.pred_labels: np.ndarray = self.knn.predict(val_embed)
+        self.val_labels = [simplify_label(l) for l in val["labels"]]
+        self.pred_probs: np.ndarray = self.measurement.predict_proba(val_embed)
+        # self.pred_labels: np.ndarray = self.measurement.predict(val_embed)
+        self.slide_names = val["index"]
 
     def diff(self, ret_pkl_p):
         ret = pkl_load(ret_pkl_p)
         ret_embed = ret["embed_pool"]
-        ret_pred_probs: np.ndarray = self.knn.predict_proba(ret_embed)
+        ret_pred_probs: np.ndarray = self.measurement.predict_proba(ret_embed)
         diff = ret_pred_probs - self.pred_probs
         diff_df = pd.DataFrame(diff, columns=self.classes_)
-        diff_df["label"] = self.pred_labels
+        # diff_df["label"] = self.pred_labels
+        diff_df["label"] = self.val_labels
+        diff_df.index = self.slide_names
         return diff_df
 
-    def summary(self, diff_dir: Path):
+    def summary(self, diff_dir: Path, use_group=True):
         """For each label, how the mask will influence the prediction"""
         diff_df_csvs = list(diff_dir.glob("*_mask_*.csv"))
         mask_effect = {}
         for csv in diff_df_csvs:
-            diff_df = pd.read_csv(csv)
-            diff_mean = diff_df.groupby("label").mean()
-            effects = []
-            for label in self.classes_:
-                effects.append(diff_mean.loc[label, label])
+            diff_df = pd.read_csv(csv, index_col=0)
+            if use_group:
+                diff_mean = diff_df.groupby("label").mean()
+                effects = []
+                for label in self.classes_:
+                    effects.append(diff_mean.loc[label, label])
+            else:
+                effects = diff_df.iloc[:, :6].mean(axis=0)
+            # print(effects)
             mask_name = csv.stem.removeprefix("val_").removesuffix("_pool")
             mask_effect[mask_name] = list(effects)
         mask_effect_df = pd.DataFrame(mask_effect, index=self.classes_).transpose()
@@ -295,6 +310,7 @@ def sample_cell_type(cells: list[CellInstance], cell_type: str, sample_size=256)
 
 def mask_effect_heat_map(effect_csv_p, dst):
     mask_effect_df = pd.read_csv(effect_csv_p, index_col=0)
+    mask_effect_df.drop(["other"], axis=1, inplace=True)
     # values = mask_effect_df.values * -1
     # annotation text is the :.3f string of the values
     # annotation_text = values.round(3).astype(str)
@@ -306,13 +322,46 @@ def mask_effect_heat_map(effect_csv_p, dst):
     rank = [idx for idx in range(len(mask_names))]
     annotation_text = []
     for label in labels:
-        mask_effect = mask_effect_df.loc[:, label] * -1
+        mask_effect = minmax_scale(mask_effect_df.loc[:, label])
         sorted_idx = np.argsort(mask_effect)
         rank_values.append([mask_effect[idx] for idx in sorted_idx])
         annotation_text.append([mask_names[idx] for idx in sorted_idx])
     fig = heat_map(
         z=np.transpose(rank_values),
-        x=labels,
+        x=[ACCR_LABLE[l] for l in labels],
+        y=rank,
+        annotation_text=np.transpose(annotation_text),
+    )
+    fig.write_image(dst, scale=2)
+
+
+ACCR_LABLE = {
+    "normal": "NORMAL",
+    "acute leukemia": "ACL",
+    "lymphoproliferative disorder": "LPD",
+    "myelodysplastic syndrome": "MDS",
+    "plasma": "PCN",
+}
+
+
+def mask_effect_cell_ordered(effect_csv_p, dst):
+    mask_effect_df = pd.read_csv(effect_csv_p, index_col=0)
+    mask_effect_df.drop(["other"], axis=1, inplace=True)
+    labels = [ACCR_LABLE[l] for l in mask_effect_df.columns]
+    mask_names: list[str] = [
+        name.removeprefix("mask_") for name in mask_effect_df.index
+    ]
+    rank_values = []
+    rank = [idx for idx in range(len(labels))]
+    annotation_text = []
+    for cell_type in mask_effect_df.index:
+        mask_effect = minmax_scale(mask_effect_df.loc[cell_type, :])
+        sorted_idx = np.argsort(mask_effect)
+        rank_values.append([mask_effect[idx] for idx in sorted_idx])
+        annotation_text.append([labels[idx] for idx in sorted_idx])
+    fig = heat_map(
+        z=np.transpose(rank_values),
+        x=mask_names,
         y=rank,
         annotation_text=np.transpose(annotation_text),
     )
@@ -320,10 +369,14 @@ def mask_effect_heat_map(effect_csv_p, dst):
 
 
 if __name__ == "__main__":
-    make_mask_embed(
-        "data/0/pool-1650909062154.pth",
-        mask_dir=Path("mask_n0"),
-        subtype_k=0,
-    )
+    # make_mask_embed(
+    #     "data/0/pool-1650909062154.pth",
+    #     mask_dir=Path("mask_n0"),
+    #     subtype_k=0,
+    # )
     diff_mask_embed("mask_n0/result", dst=Path("mask_n0/mask_diff"))
     mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.png")
+    mask_effect_cell_ordered(
+        "mask_n0/mask_diff/mask_effect.csv",
+        "mask_n0/mask_effect_cell.png",
+    )

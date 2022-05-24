@@ -20,8 +20,11 @@ def load_size(fp="data/slide_size.csv"):
         return {row[0]: int(row[1]) for row in reader}
 
 
-def create_knn(refer_embed: np.ndarray, labels):
-    n_neighbors = round(math.sqrt(len(refer_embed)))
+def create_knn(refer_embed: np.ndarray, labels, use_all=False):
+    if use_all:
+        n_neighbors = len(refer_embed)
+    else:
+        n_neighbors = round(math.sqrt(len(refer_embed)))
     print(f"n_neighbors: {n_neighbors}")
     knn: KNeighborsClassifier = KNeighborsClassifier(
         n_neighbors=n_neighbors,
