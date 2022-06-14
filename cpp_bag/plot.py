@@ -1,27 +1,49 @@
 from __future__ import annotations
 
-import math
-import random
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import umap
 from plotly.validators.scatter.marker import SymbolValidator
-from sklearn.dummy import DummyClassifier
 from sklearn.manifold import TSNE
-from sklearn.neighbors import KNeighborsClassifier
 
 from cpp_bag.io_utils import json_dump
 from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label
+from cpp_bag.performance import create_knn
+from cpp_bag.performance import dummy_exp
+from cpp_bag.performance import dump_metric
 from cpp_bag.performance import load_size
+from cpp_bag.performance import proba_to_dfDict
+from cpp_bag.performance import top3_summary
 
 TEMPLATE = "plotly_white"
 FONT = "Arial"
+
+
+def heat_map(z, x, y, annotation_text):
+    fig = ff.create_annotated_heatmap(
+        z,
+        y=y,
+        x=x,
+        annotation_text=annotation_text,
+        colorscale="Blues",
+        showscale=True,
+    )
+    fig.update_layout(
+        template=TEMPLATE,
+        font_family="Arial",
+        width=1280,
+        height=600,
+        yaxis_visible=False,
+        yaxis_showticklabels=False,
+    )
+    return fig
 
 
 def arr_project(arrays, method="umap"):
@@ -151,12 +173,7 @@ def slide_vectors(
     train = pkl_load(train_pkl_p)
     refer_embed = train["embed_pool"]
     labels = [simplify_label(l) for l in train["labels"]]
-    n_neighbors = round(math.sqrt(len(refer_embed)))
-    print(f"n_neighbors: {n_neighbors}")
-    knn = KNeighborsClassifier(n_neighbors=n_neighbors, weights="distance").fit(
-        refer_embed,
-        labels,
-    )
+    knn = create_knn(refer_embed, labels)
     classes_ = knn.classes_
     val = pkl_load(val_pkl_p)
     val_embed = val["embed_pool"]
@@ -186,9 +203,16 @@ def slide_vectors(
 
     plot_df = pd.DataFrame(_df)
     summary = top3_summary(plot_df)
-    dummy_summary = dummy_exp(refer_embed, labels, val_embed, val_labels)
-    print("summary", summary)
-    print("dummy_summary", dummy_summary)
+    dump_metric(val_labels, preds, classes_, dst / f"{mark}_metric.csv")
+    dummy_summary = dummy_exp(
+        refer_embed,
+        labels,
+        val_embed,
+        val_labels,
+        dst / f"{mark}_dummy_metric.csv",
+    )
+    # print("summary", summary)
+    # print("dummy_summary", dummy_summary)
     json_dump(summary, dst / f"{mark}_slide_summary.json")
     json_dump(dummy_summary, dst / f"{mark}_slide_dummy_summary.json")
     plot_df.to_json(str(dst / f"{mark}.json"), orient="records")
@@ -223,77 +247,111 @@ def slide_vectors(
     return fig
 
 
-def cal_weighted_acc(label, *preds):
-    acc = 0
-    for rank, pred in enumerate(preds, start=1):
-        confident = float(pred.split(":")[-1])
-        acc += int(label in pred and "0.00" not in pred) * confident
-    return acc
+def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=False):
+    #  perf_average, perf_err
 
-
-def proba_to_dfDict(pred_probs, classes_, val_labels):
-
-    pred_probs_argsort = np.argsort(pred_probs, axis=1)[:, ::-1]
-    prob_top0 = [
-        f"{classes_[indices[0]]}:{pred_probs[row_idx, indices[0]]:.2f}"
-        for row_idx, indices in enumerate(pred_probs_argsort)
-    ]
-    prob_top1 = [
-        f"{classes_[indices[1]]}:{pred_probs[row_idx, indices[1]]:.2f}"
-        for row_idx, indices in enumerate(pred_probs_argsort)
-    ]
-    prob_top2 = [
-        f"{classes_[indices[2]]}:{pred_probs[row_idx, indices[2]]:.2f}"
-        for row_idx, indices in enumerate(pred_probs_argsort)
-    ]
-    top3_corrects = [
-        any(
-            e
-            for e in (prob_top0[idx], prob_top1[idx], prob_top2[idx])
-            if ("0.00" not in e and val_labels[idx] in e)
-        )
-        for idx in range(len(val_labels))
-    ]
-    weighted_acc = [
-        cal_weighted_acc(
-            val_labels[idx],
-            prob_top0[idx],
-            prob_top1[idx],
-            prob_top2[idx],
-        )
-        for idx in range(len(val_labels))
-    ]
-    _df = {
-        "label": val_labels,
-        "prob_top0": prob_top0,
-        "prob_top1": prob_top1,
-        "prob_top2": prob_top2,
-        "top3_correct": top3_corrects,
-        "weighted_acc": weighted_acc,
-    }
-    return _df
-
-
-def top3_summary(cases):
-    correct_cases = cases[cases["top3_correct"]]
-    incorrect_cases = cases[~cases["top3_correct"]]
-    weighted_acc_mean = cases["weighted_acc"].mean()
-    summary = {
-        "correct": (len(correct_cases), len(correct_cases) / len(cases)),
-        "incorrect": (len(incorrect_cases), len(incorrect_cases) / len(cases)),
-        "weighted_acc": weighted_acc_mean,
-    }
-    return summary
-
-
-def dummy_exp(refer_embed, refer_labels, test_embed, test_labels):
-    dummy = DummyClassifier(strategy="prior", random_state=42).fit(
-        refer_embed,
-        refer_labels,
+    performance.sort_values(
+        f"{main_metrics}_mean",
+        inplace=True,
     )
-    classes_ = dummy.classes_
-    pred_probs = dummy.predict_proba(test_embed)
-    print(pred_probs[0])
-    _df = proba_to_dfDict(pred_probs, classes_, test_labels)
-    summary = top3_summary(pd.DataFrame(_df))
-    return summary
+    fig = go.Figure()
+    x = performance.index.to_list()
+    marker_symbols = ["square", "x"]
+    # fig.add_shape(
+    #     type="line",
+    #     x0=0.01,
+    #     y0=perf_average,
+    #     x1=0.99,
+    #     y1=perf_average,
+    #     xref="paper",
+    #     line=dict(color="lightgray", width=2, dash="dash"),
+    # )
+    for idx, measure in enumerate(["Precision", "Recall"]):
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=performance[f"{measure}_mean"],
+                error_y=dict(
+                    color="lightgray",
+                    type="data",
+                    array=performance[f"{measure}_std"],
+                    visible=False,
+                ),
+                marker_color="lightgray",
+                marker_symbol=marker_symbols[idx],
+                marker_size=10,
+                mode="markers",
+                name=measure,
+            ),
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=performance[f"{main_metrics}_mean"],
+            error_y=dict(
+                color="lightgray",
+                type="data",
+                array=performance[f"{main_metrics}_std"],
+                visible=True,
+            ),
+            marker_color="blue",
+            mode="markers+text",
+            text=[f"{v:.02f}" for v in performance[f"{main_metrics}_mean"]],
+            marker_size=10,
+            name=main_metrics,
+        ),
+    )
+    if include_random:
+        random_title = "Random"
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=performance[f"{random_title}_mean"],
+                error_y=dict(
+                    color="lightgray",
+                    type="data",
+                    array=performance[f"{random_title}_std"],
+                    visible=False,
+                ),
+                marker_color="pink",
+                mode="markers+text",
+                text=[f"{v:.02f}" for v in performance[f"{random_title}_mean"]],
+                marker_size=10,
+                name=f"{random_title} {main_metrics}",
+            ),
+        )
+    fig.update_traces(textposition="middle right")
+
+    x_loc = len(performance) - 2
+    fig.update_layout(
+        template=TEMPLATE,
+        font_family="Arial",
+        width=1280,
+        height=600,
+        xaxis_title="Label",
+        yaxis_title="Metrics",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        # annotations=[
+        #     dict(
+        #         x=x_loc,
+        #         y=perf_average,
+        #         xref="x",
+        #         yref="y",
+        #         text=f"Micro {y_title}: {perf_average:.03f}±{perf_err:.03f}",
+        #         showarrow=False,
+        #         font=dict(size=15),
+        #     ),
+        # ],
+    )
+    fig.add_annotation(
+        x=1,
+        y=1.05,
+        xref="paper",
+        yref="paper",
+        align="left",
+        text="n=5 independent experiments",
+        showarrow=False,
+    )
+    return fig
