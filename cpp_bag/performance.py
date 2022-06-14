@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -36,7 +37,7 @@ def create_knn(refer_embed: np.ndarray, labels, use_all=False):
     return knn
 
 
-def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
+def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False, dst=Path("data"),):
     train = pkl_load(train_pkl_p)
     test = pkl_load(val_pkl_p)
     labels = [simplify_label(l) for l in train["labels"]]
@@ -46,7 +47,7 @@ def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
     print(refer_embed.shape)
     y_pred = knn.predict(test["embed_pool"])
     y_true = [simplify_label(l) for l in test["labels"]]
-    dump_metric(y_true, y_pred, unique_labels, mark=f"data/{mark}_metric.csv")
+    dump_metric(y_true, y_pred, unique_labels, dst=dst/ f"{mark}_metric.csv")
 
     if random_base:
         dummy = DummyClassifier(strategy="stratified", random_state=42).fit(
@@ -54,7 +55,7 @@ def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False):
             labels,
         )
         y_pred = dummy.predict(test["embed_pool"])
-        dump_metric(y_true, y_pred, unique_labels, mark="data/dummy_metric.csv")
+        dump_metric(y_true, y_pred, unique_labels, dst="data/dummy_metric.csv")
 
 
 def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):

@@ -251,6 +251,7 @@ class ImAnalyst:
         slide_names = pd.read_csv(diff_df_csvs[0], index_col=0).index.to_list()
         # !TODO ugly code
         mask_cell_count = load_mask_cell_count(cell_types, slide_names)
+        print(mask_cell_count)
         min_mask_cell_count = len(slide_names)
         mask_cell_count = {
             cell_type: count

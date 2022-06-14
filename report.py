@@ -7,10 +7,11 @@ from typing import NamedTuple
 from typing import TypedDict
 
 import pandas as pd
-from torch import rand
+from sklearn.metrics import f1_score
 
 from cpp_bag.io_utils import json_load
-from cpp_bag.plot import plot_tag_perf_with_std
+from cpp_bag.performance import performance_measure
+from cpp_bag.plot import plot_embedding, plot_tag_perf_with_std
 
 
 class AdjustFactor(NamedTuple):
@@ -203,7 +204,7 @@ METRICS_RENAME_MAP = {
 }
 
 
-def merge_metrics(extra_mark="", random_csv=None):
+def merge_metrics(extra_mark="", random_csv=None, write_pdf=False):
     metrics = ["precision", "recall", "fscore"]
     records = defaultdict(list)
     for trial in range(5):
@@ -241,13 +242,39 @@ def merge_metrics(extra_mark="", random_csv=None):
         include_random=include_random,
     )
     fig_metrics.write_image(f"metrics{extra_mark}.jpg", scale=2)
-
+    if write_pdf:
+        fig_metrics.write_image(f"metrics{extra_mark}.pdf", format="pdf")
     return df_metrics_dst
 
+def draw_embedding(df_p):
+    plot_df = pd.read_json(df_p, orient="records")
+    fig = plot_embedding(plot_df)
+    fig.write_image(f"embedding.pdf", format="pdf")
+
+def f1_only():
+    for trial in range(5):
+        MARK = str(trial)
+        DST = Path("data") / MARK
+        data = json_load(DST / f"{MARK}.json")
+        preds = [item["pred"] for item in data]
+        labels = [item["label"] for item in data]
+        f1 = f1_score(labels, preds, average="micro")
+        print(f"{MARK}: {f1:.3f}")
+
+def avg_pool_f1():
+    for trial in range(5):
+        MARK = str(trial)
+        DST = Path("data") / MARK
+        train_pkl = DST / f"train_avg{MARK}_pool.pkl"
+        val_pkl = DST / f"val_avg{MARK}_pool.pkl"
+        performance_measure(train_pkl, val_pkl, mark=f"{MARK}_avg", dst=DST, random_base=False)
 
 if __name__ == "__main__":
     # main(export=False)
     # adjust_factor = review_adjust()
     # main(adjust_factor=adjust_factor, export=True)
-    random_csv = merge_metrics(extra_mark="_dummy")
-    merge_metrics(random_csv=random_csv)
+    # random_csv = merge_metrics(extra_mark="_dummy")
+    # merge_metrics(random_csv=random_csv, write_pdf=True)
+    # draw_embedding("data/0/0.json")
+    avg_pool_f1()
+    # f1_only()

@@ -163,6 +163,7 @@ def state_plot(df: pd.DataFrame, thresh=15, use_simplify=False):
     return fig
 
 
+
 def slide_vectors(
     train_pkl_p,
     val_pkl_p,
@@ -216,13 +217,28 @@ def slide_vectors(
     json_dump(summary, dst / f"{mark}_slide_summary.json")
     json_dump(dummy_summary, dst / f"{mark}_slide_dummy_summary.json")
     plot_df.to_json(str(dst / f"{mark}.json"), orient="records")
+    fig = plot_embedding(plot_df)
+    fig.write_html(str(dst / f"{mark}umap.html"))
+    return fig
+
+ACCR_LABLE = {
+    "normal": "NORMAL",
+    "acute leukemia": "ACL",
+    "lymphoproliferative disorder": "LPD",
+    "myelodysplastic syndrome": "MDS",
+    "plasma": "PCN",
+    "other": "OTHER",
+}
+
+def plot_embedding(df):
+    df["label"] = df["label"].map(ACCR_LABLE)
     fig = px.scatter(
-        plot_df,
+        df,
         x="D1",
         y="D2",
         color="label",
         hover_name="index",
-        symbol="correct",
+        # symbol="correct",
         hover_data=[
             "pred",
             "prob_top0",
@@ -230,6 +246,7 @@ def slide_vectors(
             "prob_top2",
             "full_label",
             "cell_count",
+            "correct",
         ],
     )
     fig.update_xaxes(showticklabels=False)
@@ -243,9 +260,7 @@ def slide_vectors(
         width=1280,
         height=600,
     )
-    fig.write_html(str(dst / f"{mark}umap.html"))
     return fig
-
 
 def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=False):
     #  perf_average, perf_err
