@@ -204,7 +204,7 @@ METRICS_RENAME_MAP = {
 }
 
 
-def merge_metrics(extra_mark="", random_csv=None, write_pdf=False):
+def merge_metrics(extra_mark="", random_csv=None, write_pdf=False, avg_csv=None):
     metrics = ["precision", "recall", "fscore"]
     records = defaultdict(list)
     for trial in range(5):
@@ -232,14 +232,21 @@ def merge_metrics(extra_mark="", random_csv=None, write_pdf=False):
 
     main_metrics = "F1 Score"
     include_random = random_csv is not None
+    include_avg = avg_csv is not None
     if include_random:
         random_record_df = pd.read_csv(random_csv, index_col=0)
         df_metrics["Random_mean"] = random_record_df[f"{main_metrics}_mean"]
         df_metrics["Random_std"] = random_record_df[f"{main_metrics}_std"]
+    if include_avg:
+        print(f"Loading avg csv: {avg_csv}")
+        avg_record_df = pd.read_csv(avg_csv, index_col=0)
+        df_metrics["Avg_mean"] = avg_record_df[f"{main_metrics}_mean"]
+        df_metrics["Avg_std"] = avg_record_df[f"{main_metrics}_std"]
     fig_metrics = plot_tag_perf_with_std(
         df_metrics,
         main_metrics,
         include_random=include_random,
+        include_avg=include_avg,
     )
     fig_metrics.write_image(f"metrics{extra_mark}.jpg", scale=2)
     if write_pdf:
@@ -273,8 +280,9 @@ if __name__ == "__main__":
     # main(export=False)
     # adjust_factor = review_adjust()
     # main(adjust_factor=adjust_factor, export=True)
-    # random_csv = merge_metrics(extra_mark="_dummy")
-    # merge_metrics(random_csv=random_csv, write_pdf=True)
+    random_csv = merge_metrics(extra_mark="_dummy")
+    avg_csv = merge_metrics(extra_mark="_avg")
+    merge_metrics(random_csv=random_csv, write_pdf=True, avg_csv=avg_csv)
     # draw_embedding("data/0/0.json")
-    avg_pool_f1()
+    # avg_pool_f1()
     # f1_only()

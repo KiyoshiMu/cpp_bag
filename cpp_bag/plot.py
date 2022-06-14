@@ -262,7 +262,7 @@ def plot_embedding(df):
     )
     return fig
 
-def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=False):
+def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=False, include_avg=False):
     #  perf_average, perf_err
 
     performance.sort_values(
@@ -336,6 +336,23 @@ def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=
                 name=f"{random_title} {main_metrics}",
             ),
         )
+    if include_avg:
+        avg_title = "Avg"
+        fig.add_trace(go.Scatter(
+            x=x,
+            y=performance[f"{avg_title}_mean"],
+            error_y=dict(
+                color="lightgray",
+                type="data",
+                array=performance[f"{avg_title}_std"],
+                visible=False,
+            ),
+            marker_color="orange",
+            mode="markers+text",
+            text=[f"{v:.02f}" for v in performance[f"{avg_title}_mean"]],
+            marker_size=10,
+            name=f"{avg_title} {main_metrics}",
+        )),
     fig.update_traces(textposition="middle right")
 
     x_loc = len(performance) - 2
