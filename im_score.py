@@ -54,6 +54,7 @@ CellType = Literal[
     "Basophil",
     "Histiocyte",
     "Mast_cell",
+    "Megakaryocyte",
 ]
 
 CELL_TYPES: list[CellType] = [
@@ -71,6 +72,7 @@ CELL_TYPES: list[CellType] = [
     "Basophil",
     "Histiocyte",
     "Mast_cell",
+    "Megakaryocyte",
 ]
 
 
@@ -117,10 +119,7 @@ class ImScorer:
         )
 
     def make_masks(
-        self,
-        dst: Path,
-        sample_size=256,
-        use_cache=True,
+        self, dst: Path, sample_size=256, use_cache=True,
     ):
         for cell_type, kmean_mask in self.masks.items():
             print(f"{cell_type}")
@@ -160,8 +159,7 @@ class ImScorer:
             mask_flag = np.zeros(len(slide_cells), dtype=bool)
             if len(target_cells) > 0:
                 pred_subtypes = self._predict_mask(
-                    self.masks[cell_type],
-                    [cell[1] for cell in target_cells],
+                    self.masks[cell_type], [cell[1] for cell in target_cells],
                 )
                 mask_idx = [
                     idx
@@ -196,10 +194,7 @@ class ImScorer:
             # train_indices = cache["train"]
         val_set = data.Subset(self.dataset, val_indices)
         val_pkl_dst, _ = ds_project(
-            val_set,
-            self.embed_func,
-            mask_dst,
-            name_mark=f"val_mask_{cell_type}",
+            val_set, self.embed_func, mask_dst, name_mark=f"val_mask_{cell_type}",
         )
         return val_pkl_dst
 
@@ -243,11 +238,13 @@ class ImAnalyst:
 
     def summary(self, diff_dir: Path, use_group=True):
         """For each label, how the mask will influence the prediction"""
+
+        def _get_cell_type(csv_p):
+            c_type = csv_p.stem.split("_mask_")[-1].removesuffix("_pool")
+            return c_type
+
         diff_df_csvs = list(diff_dir.glob("*_mask_*.csv"))
-        cell_types = [
-            csv_p.stem.split("_mask_")[-1].removesuffix("_pool")
-            for csv_p in diff_df_csvs
-        ]
+        cell_types = [_get_cell_type(csv_p) for csv_p in diff_df_csvs]
         slide_names = pd.read_csv(diff_df_csvs[0], index_col=0).index.to_list()
         # !TODO ugly code
         mask_cell_count = load_mask_cell_count(cell_types, slide_names)
@@ -261,7 +258,7 @@ class ImAnalyst:
         mask_effect = {}
         for csv_p in diff_df_csvs:
             diff_df = pd.read_csv(csv_p, index_col=0)
-            cell_type = csv_p.stem.split("_mask_")[-1].removesuffix("_pool")
+            cell_type = _get_cell_type(csv_p)
             if cell_type not in mask_cell_count:
                 continue
             if use_group:
@@ -273,7 +270,7 @@ class ImAnalyst:
             else:
                 effects = diff_df.iloc[:, :6].sum(axis=0) / mask_cell_count[cell_type]
             # print(effects)
-            mask_name = csv_p.stem.removeprefix("val_").removesuffix("_pool")
+            mask_name = _get_cell_type(csv_p)
             mask_effect[mask_name] = list(effects)
         mask_effect_df = pd.DataFrame(mask_effect, index=self.classes_).transpose()
         print(mask_effect_df)
@@ -293,9 +290,9 @@ def load_mask_cell_count(cell_types, slide_names, dst=Path("mask_n0/result/")):
 
 def _load_mask_info(p: Path, slide_names, bag_size=256):
     def _get_sample_size(info):
-        ratio = info["mask_count"] / info["total_count"]
-        if ratio == 0:
+        if info["total_count"] == 0 or info["mask_count"] == 0:
             return 0
+        ratio = info["mask_count"] / info["total_count"]
         # data.py line 182
         size = ceil(ratio * bag_size)
         if size < 1:
@@ -430,6 +427,5 @@ if __name__ == "__main__":
     diff_mask_embed("mask_n0/result", dst=Path("mask_n0/mask_diff"), use_group=False)
     mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.png")
     mask_effect_cell_ordered(
-        "mask_n0/mask_diff/mask_effect.csv",
-        "mask_n0/mask_effect_cell.png",
+        "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.png",
     )

@@ -145,6 +145,7 @@ class CustomImageDataset(Dataset):
         self.with_MK = with_MK
         self._mask_map: Optional[MaskMap] = None
         self.mask_tensor = torch.zeros(CELL_FEATURE_SIZE, dtype=torch.float32)
+        self._masking_MK = False
         if with_MK:
             self.MK_features = [
                 torch.as_tensor(
@@ -233,21 +234,34 @@ class CustomImageDataset(Dataset):
         return feature, label, sample_cell_labels
 
     def setup_mask(self, cell_type: str):
-        mask_map = {}
         mask_info = {}
-        for slide_idx, name in enumerate(self.slide_names):
-            slide_cells = self.cells[slide_idx]
-            mask_idx = [
-                idx for idx, cell in enumerate(slide_cells) if cell.label == cell_type
-            ]
-            mask_flag = np.zeros(len(slide_cells), dtype=bool)
-            mask_flag[mask_idx] = True
-            mask_map[name] = torch.as_tensor(mask_flag, dtype=torch.bool)
-            mask_info[name] = {
-                "mask_count": len(mask_idx),
-                "total_count": len(slide_cells),
-            }
-        self._mask_map = mask_map
+        if cell_type == "MK":
+            self._masking_MK = True
+            self._mask_map = None
+            for slide_idx, name in enumerate(self.slide_names):
+                mk_feature = self.MK_features[slide_idx]
+                count = 1 if mk_feature.sum() > 0 else 0
+                mask_info[name] = {
+                    "mask_count": count,
+                    "total_count": count,
+                }
+        else:
+            self._masking_MK = False
+            mask_map = {}
+            
+            for slide_idx, name in enumerate(self.slide_names):
+                slide_cells = self.cells[slide_idx]
+                mask_idx = [
+                    idx for idx, cell in enumerate(slide_cells) if cell.label == cell_type
+                ]
+                mask_flag = np.zeros(len(slide_cells), dtype=bool)
+                mask_flag[mask_idx] = True
+                mask_map[name] = torch.as_tensor(mask_flag, dtype=torch.bool)
+                mask_info[name] = {
+                    "mask_count": len(mask_idx),
+                    "total_count": len(slide_cells),
+                }
+            self._mask_map = mask_map
         return mask_info
 
     def __getitem__(self, idx):
@@ -261,7 +275,10 @@ class CustomImageDataset(Dataset):
             torch.as_tensor(self._sample_idx(slide_portion, group)),
         )
         if self.with_MK:
-            feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
+            if self._masking_MK:
+                feature = torch.cat([feature_bag, self.mask_tensor.unsqueeze(0)], dim=0)
+            else:
+                feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
         else:
             feature = feature_bag
         return feature, label
