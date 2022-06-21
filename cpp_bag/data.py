@@ -220,8 +220,9 @@ class CustomImageDataset(Dataset):
         slide_portion = self.slide_portion[idx]
         group = self.cell_groups[idx]
         sample_indices = self._sample_idx(slide_portion, group)
-        cell_labels = self.cells[idx]
-        sample_cell_labels = [cell_labels[i].label for i in sample_indices]
+        cells = self.cells[idx]
+        sample_cells =[cells[i] for i in sample_indices]
+        # sample_cell_labels = [sample_cells[i].label for i in sample_indices]
         feature_bag = torch.index_select(
             self._get_features_by_idx(idx),
             0,
@@ -231,7 +232,7 @@ class CustomImageDataset(Dataset):
             feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
         else:
             feature = feature_bag
-        return feature, label, sample_cell_labels
+        return feature,self.le.inverse_transform([label])[0] , sample_cells
 
     def setup_mask(self, cell_type: str):
         mask_info = {}
