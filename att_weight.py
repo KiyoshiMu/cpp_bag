@@ -1,5 +1,8 @@
+from math import floor
 from typing import Callable, List
 import zipfile
+
+import numpy as np
 from cpp_bag.model import BagPooling
 from cpp_bag import data
 from pathlib import Path
@@ -11,9 +14,10 @@ import pandas as pd
 import plotly.express as px
 from hflayers import  HopfieldPooling
 import plotly.graph_objects as go
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageDraw, ImageFont
 import re
 import plotly.colors
+from collections import defaultdict
 
 TEMPLATE = "plotly_white"
 FONT = "Arial"
@@ -33,6 +37,73 @@ CELL_TYPES: list[str] = [
     "Histiocyte",
     "Mast_cell",
 ]
+
+def bin_str(bins):
+    out = []
+    for idx, cut in enumerate(bins[:-1]):
+        out.append(f"{cut:.4f}-{bins[idx+1]:.4f}")
+    return out[::-1]
+
+def plot_cell_att_rank(sample_cells,rank_map, attn_output_weights,img_loader, bin_strs, marker):
+    rank_font_size = 24
+    att_font_size = 18
+    rank_font = ImageFont.truetype("arial.ttf", rank_font_size)
+    att_font = ImageFont.truetype("arial.ttf", att_font_size)
+    legend_font = ImageFont.truetype("arial.ttf", 18)
+    legend_loc = "bottom"
+    cell_w = 96
+    padding = 20
+    left_text_w = 135
+    text_padding = 4
+    legend_dot_size = 20
+    bottom_legend_h = legend_dot_size + 36
+    legend_gap = 36
+    legend_right_w = 250
+    cell_size = cell_w + padding
+    # canvas_w = cell_size * max(len(locs) for locs in rank_map.values()) + left_text_w
+    # canvas_h = cell_size * 10 + bottom_legend_h
+    canvas_w = cell_size * max(len(locs) for locs in rank_map.values()) + left_text_w + legend_right_w
+    canvas_h = cell_size * 10
+    canvas = Image.new("RGB", (canvas_w, canvas_h), color=(255, 255, 255))
+    slide_name = sample_cells[0].name.split(".")[0]
+    for row_idx, rank in enumerate( range(10, 0, -1)):
+        locs = rank_map[rank]
+        locs.sort(key=lambda x:attn_output_weights[x], reverse=True)
+        for col_idx, loc in enumerate(locs):
+            cell = sample_cells[loc]
+            cell_name = cell.name
+            color = COLOR_MAP[cell.label]
+            cell_img =img_loader( f"{slide_name}/{cell_name}.jpg")
+            cell_img = ImageOps.fit(cell_img, (cell_w, cell_w), method=Image.ANTIALIAS)
+            cell_img = ImageOps.expand(cell_img,border=8,fill=color)
+            canvas.paste(cell_img, (col_idx * cell_size + left_text_w,  row_idx * cell_size, ))
+
+    for row_idx, rank in enumerate( range(1, 11, 1)):
+        d = ImageDraw.Draw(canvas)
+        d.text((text_padding, row_idx * cell_size), str(rank), fill=(0, 0, 0), font=rank_font)
+        d.text((text_padding, row_idx * cell_size + rank_font_size + 4), bin_strs[row_idx], fill=(0, 0, 0), font=att_font)
+    # add legend dots to the bottom
+    # start = text_padding
+    # for idx, label in enumerate(CELL_TYPES):
+    #     color = COLOR_MAP[label]
+    #     d = ImageDraw.Draw(canvas)
+    #     dot_place = (start, canvas_h - bottom_legend_h, start + legend_dot_size, canvas_h - bottom_legend_h + legend_dot_size)
+    #     d.rectangle(dot_place, fill=color)        
+    #     d.text((start, canvas_h - bottom_legend_h + legend_dot_size + text_padding), label, fill=(0, 0, 0), font=legend_font)
+    #     start = start + legend_dot_size + legend_gap
+    start_w = canvas_w - legend_right_w + text_padding * 4
+    start_h = text_padding
+    for idx, label in enumerate(CELL_TYPES):
+        color = COLOR_MAP[label]
+        d = ImageDraw.Draw(canvas)
+        dot_place = (start_w, start_h, start_w + legend_dot_size, start_h + legend_dot_size)
+        d.rectangle(dot_place, fill=color)        
+        d.text((start_w + legend_dot_size + text_padding, start_h), label, fill=(0, 0, 0), font=legend_font)
+        start_h += legend_gap
+    
+    
+    canvas.save(f"att_rank/{slide_name}-{marker}.png")
+    
 def mk_color_map(cell_types):
     colors = px.colors.qualitative.Alphabet
     color_map = {t: colors[i % len(colors)] for i, t in enumerate(cell_types)}
@@ -60,6 +131,10 @@ class AttentionWeightPlotter:
         df["size"] = minmax_scale(attn_output_weights, (0.1, 0.999))
         df["name"] = [cell.name for cell in cell_bag]
         return df
+    
+    def make_att_weight(self, cell_bag:List[data.CellInstance], feature_bag: torch.Tensor):
+        attn_output_weights = self._attention_weight(feature_bag)[:len(cell_bag)]
+        return attn_output_weights
     
     def plot_on_df(self, df: pd.DataFrame, save_path: Path , img_loader: Callable[[str], Image.Image], marker=None ):
         fig = go.Figure()
@@ -108,7 +183,8 @@ class AttentionWeightPlotter:
             cell_img =img_loader( f"{slide_name}/{row['name']}.jpg")
             # color = get_continuous_color(plotly.colors.PLOTLY_SCALES["RdBu"], weight)
             color = color_map[row["cellType"]]
-            cell_img = ImageOps.expand(cell_img,border=7,fill=color)
+            cell_img.putalpha(floor(size*255))
+            cell_img = ImageOps.expand(cell_img,border=6,fill=color)
             fig.add_layout_image(
                 dict(
                     source=cell_img,
@@ -121,7 +197,7 @@ class AttentionWeightPlotter:
                     sizex=0.35,
                     sizey=0.35,
                     sizing="contain",
-                    opacity=size,
+                    opacity=1,
                     layer="above"
                 )
             )
@@ -150,7 +226,13 @@ class AttentionWeightPlotter:
         # average attention weights over heads
         attn_output_weights = attn_raw.sum(dim=1) / num_heads
         return attn_output_weights.squeeze()
-    
+
+def get_rank_map(attn_output_weights, bins):
+    ranks = np.digitize(attn_output_weights, bins, right=True)
+    rank_map = defaultdict(list)
+    for idx, rank in enumerate(ranks):
+        rank_map[rank].append(idx)
+    return rank_map
 def main():
     WITH_MK = True
     all_cells = data.load_cells()
@@ -178,65 +260,29 @@ def main():
     img_loader = lambda x: Image.open(zip_ref.open(x))
     for index in val_indices:
         feature, label, sample_cells = dataset.example_samples(index)
-        df = att_plotter.make_att_df(sample_cells, feature)
-        att_plotter.plot_on_df(df, Path("data/att_"), img_loader, marker=label)
+        attn_weight = att_plotter.make_att_weight(sample_cells, feature)
+        _, bins = pd.qcut(attn_weight, 10, retbins=True)
+        bin_strs = bin_str(bins)
+        rank_map = get_rank_map(attn_weight, bins)
+        plot_cell_att_rank(sample_cells, rank_map, attn_weight, img_loader, bin_strs, marker=label)
+        # df = att_plotter.make_att_df(sample_cells, feature)
+        # att_plotter.plot_on_df(df, Path("data/att"), img_loader, marker=label)
 
 
-def get_continuous_color(colorscale, intermed):
-    """
-    Plotly continuous colorscales assign colors to the range [0, 1]. This function computes the intermediate
-    color for any value in that range.
-
-    Plotly doesn't make the colorscales directly accessible in a common format.
-    Some are ready to use:
-    
-        colorscale = plotly.colors.PLOTLY_SCALES["Greens"]
-
-    Others are just swatches that need to be constructed into a colorscale:
-
-        viridis_colors, scale = plotly.colors.convert_colors_to_same_type(plotly.colors.sequential.Viridis)
-        colorscale = plotly.colors.make_colorscale(viridis_colors, scale=scale)
-
-    :param colorscale: A plotly continuous colorscale defined with RGB string colors.
-    :param intermed: value in the range [0, 1]
-    :return: color in rgb string format
-    :rtype: str
-    """
-    if len(colorscale) < 1:
-        raise ValueError("colorscale must have at least one color")
-
-    if intermed <= 0 or len(colorscale) == 1:
-        return colorscale[0][1]
-    if intermed >= 1:
-        return colorscale[-1][1]
-
-    for cutoff, color in colorscale:
-        if intermed > cutoff:
-            low_cutoff, low_color = cutoff, color
-        else:
-            high_cutoff, high_color = cutoff, color
-            break
-
-    # noinspection PyUnboundLocalVariable
-    color_str = plotly.colors.find_intermediate_color(
-        lowcolor=low_color, highcolor=high_color,
-        intermed=((intermed - low_cutoff) / (high_cutoff - low_cutoff)),
-        colortype="rgb")
-    return tuple(int(float(f)) for f in re.findall(r'\d+.\d+', color_str))
 
 def add_pred_info(att_dir, ret_p):
     with open(ret_p, "r") as f:
         preds = json.load(f)
     pred_map = {p["index"]: (p["label"], p["pred"]) for p in preds}
-    att_dir_map = {f.stem.split("-")[0]: f for f in Path(att_dir).glob("*.att.jpg")}
+    att_dir_map = {f.stem.split("-")[0]: f for f in Path(att_dir).glob("*.png")}
     for k, v in att_dir_map.items():
         label, pred = pred_map[k]
         att_label = v.stem.split("-")[1]
         assert label in att_label
-        v.rename(v.with_name(f"{k}-{label}-{pred}.att.jpg"))
+        v.rename(v.with_name(f"{k}-{label}-{pred}.png"))
     
 
 
 if __name__ == "__main__":
     # main()
-    add_pred_info("data/att_", "slide_vectors.json")
+    add_pred_info("att_rank", "slide_vectors.json")
