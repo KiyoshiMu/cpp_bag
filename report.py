@@ -235,8 +235,8 @@ def merge_metrics(extra_mark="", random_csv=None, write_pdf=False, avg_csv=None)
     include_avg = avg_csv is not None
     if include_random:
         random_record_df = pd.read_csv(random_csv, index_col=0)
-        df_metrics["Random_mean"] = random_record_df[f"{main_metrics}_mean"]
-        df_metrics["Random_std"] = random_record_df[f"{main_metrics}_std"]
+        df_metrics["Dummy_mean"] = random_record_df[f"{main_metrics}_mean"]
+        df_metrics["Dummy_std"] = random_record_df[f"{main_metrics}_std"]
     if include_avg:
         print(f"Loading avg csv: {avg_csv}")
         avg_record_df = pd.read_csv(avg_csv, index_col=0)
@@ -256,7 +256,8 @@ def merge_metrics(extra_mark="", random_csv=None, write_pdf=False, avg_csv=None)
 def draw_embedding(df_p):
     plot_df = pd.read_json(df_p, orient="records")
     fig = plot_embedding(plot_df)
-    fig.write_image(f"embedding.pdf", format="pdf")
+    fig.write_html("embedding.html")
+    # fig.write_image("embedding.pdf", format="pdf")
 
 def f1_only():
     for trial in range(5):

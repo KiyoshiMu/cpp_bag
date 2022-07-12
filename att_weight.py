@@ -1,4 +1,6 @@
+from itertools import chain
 from math import floor
+import math
 from typing import Callable, List
 import zipfile
 
@@ -17,7 +19,7 @@ import plotly.graph_objects as go
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import re
 import plotly.colors
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 TEMPLATE = "plotly_white"
 FONT = "Arial"
@@ -44,19 +46,31 @@ def bin_str(bins):
         out.append(f"{cut:.4f}-{bins[idx+1]:.4f}")
     return out[::-1]
 
-def plot_cell_att_rank(sample_cells,rank_map, attn_output_weights,img_loader, bin_strs, marker):
+def sort_locs_by_type_attW_sum(locs:List[int], types: List[str], att_weights: List[float]):
+    sorted_type_count = sort_locs_groups_by_attW_sum(locs, types, att_weights)
+    out = list(chain.from_iterable(x[1] for x in sorted_type_count))
+    return out
+
+def sort_locs_groups_by_attW_sum(locs:List[int], types: List[str], att_weights: List[float]):
+    type_count: defaultdict[str, List[int]] = defaultdict(list)
+    for type_, loc in zip(types, locs):
+        type_count[type_].append(loc)
+    for locs in type_count.values():
+        locs.sort(key=lambda loc: att_weights[loc], reverse=True)
+    sorted_type_count_pair = sorted(type_count.items(), key=lambda x: sum(att_weights[loc] for loc in x[1]), reverse=True)
+    return sorted_type_count_pair
+
+def plot_cell_att_rank_old(sample_cells,rank_map, attn_output_weights,img_loader, bin_strs, marker):
     rank_font_size = 24
     att_font_size = 18
     rank_font = ImageFont.truetype("arial.ttf", rank_font_size)
     att_font = ImageFont.truetype("arial.ttf", att_font_size)
     legend_font = ImageFont.truetype("arial.ttf", 18)
-    legend_loc = "bottom"
     cell_w = 96
     padding = 20
     left_text_w = 135
     text_padding = 4
     legend_dot_size = 20
-    bottom_legend_h = legend_dot_size + 36
     legend_gap = 36
     legend_right_w = 250
     cell_size = cell_w + padding
@@ -68,7 +82,9 @@ def plot_cell_att_rank(sample_cells,rank_map, attn_output_weights,img_loader, bi
     slide_name = sample_cells[0].name.split(".")[0]
     for row_idx, rank in enumerate( range(10, 0, -1)):
         locs = rank_map[rank]
-        locs.sort(key=lambda x:attn_output_weights[x], reverse=True)
+        cell_types = [sample_cells[loc].label for loc in locs]
+        # locs.sort(key=lambda x:attn_output_weights[x], reverse=True)
+        locs = sort_locs_by_type_attW_sum(locs, cell_types, attn_output_weights)
         for col_idx, loc in enumerate(locs):
             cell = sample_cells[loc]
             cell_name = cell.name
@@ -94,6 +110,71 @@ def plot_cell_att_rank(sample_cells,rank_map, attn_output_weights,img_loader, bi
     start_w = canvas_w - legend_right_w + text_padding * 4
     start_h = text_padding
     for idx, label in enumerate(CELL_TYPES):
+        color = COLOR_MAP[label]
+        d = ImageDraw.Draw(canvas)
+        dot_place = (start_w, start_h, start_w + legend_dot_size, start_h + legend_dot_size)
+        d.rectangle(dot_place, fill=color)        
+        d.text((start_w + legend_dot_size + text_padding, start_h), label, fill=(0, 0, 0), font=legend_font)
+        start_h += legend_gap
+    
+    
+    canvas.save(f"att_rank/{slide_name}-{marker}.png")
+    
+def plot_cell_att_rank(sample_cells:List[data.CellInstance], attn_output_weights,img_loader, marker):
+    rank_font_size = 24
+    att_font_size = 18
+    rank_font = ImageFont.truetype("arial.ttf", rank_font_size)
+    att_font = ImageFont.truetype("arial.ttf", att_font_size)
+    legend_font = ImageFont.truetype("arial.ttf", 18)
+    cell_w = 72
+    border = 6
+    padding = 16
+    left_text_w = 135
+    text_padding = 4
+    legend_dot_size = 20
+    legend_gap = 36
+    legend_right_w = 250
+    cell_size = cell_w + padding
+    slide_name = sample_cells[0].name.split(".")[0]
+    sorted_type_count_pair = sort_locs_groups_by_attW_sum([idx for idx, _ in enumerate(sample_cells)],
+                                                        [c.label for c in sample_cells],
+                                                        attn_output_weights)
+    ROW_CELL_N = 20
+    row_count = 0
+    for _, locs in sorted_type_count_pair:
+        row_count += math.ceil(len(locs) / ROW_CELL_N)
+
+    canvas_w = cell_size * ROW_CELL_N + left_text_w + legend_right_w
+    canvas_h = cell_size * row_count
+    canvas = Image.new("RGB", (canvas_w, canvas_h), color=(255, 255, 255))
+
+    row_idx = 0
+    type_row_idx = {}
+    for _type, locs in sorted_type_count_pair:
+        type_row_idx[_type] = row_idx
+        for col_idx, loc in enumerate(locs):
+            cell = sample_cells[loc]
+            cell_name = cell.name
+            color = COLOR_MAP[cell.label]
+            cell_img =img_loader( f"{slide_name}/{cell_name}.jpg")
+            cell_img = ImageOps.fit(cell_img, (cell_w, cell_w), method=Image.ANTIALIAS)
+            cell_img = ImageOps.expand(cell_img,border=border,fill=color)
+            col_loc = col_idx % ROW_CELL_N
+            row_loc = row_idx + col_idx // ROW_CELL_N
+            canvas.paste(cell_img, (col_loc * cell_size + left_text_w,  row_loc * cell_size, ))
+        row_idx = row_loc + 1
+    
+    d = ImageDraw.Draw(canvas)
+    for rank, (_type, locs) in enumerate(sorted_type_count_pair):
+        type_idx = type_row_idx[_type]
+        avg_att = sum(attn_output_weights[loc] for loc in locs) / len(locs)
+        d.text((text_padding, type_idx * cell_size), str(rank), fill=(0, 0, 0), font=rank_font)
+        d.text((text_padding, type_idx * cell_size + rank_font_size + 4), _type, fill=(0, 0, 0), font=att_font)
+        d.text((text_padding, type_idx * cell_size + rank_font_size + att_font_size + 8), f"{avg_att:.4f}", fill=(0, 0, 0), font=att_font)
+    start_w = canvas_w - legend_right_w + text_padding * 4
+    start_h = text_padding
+    
+    for _, label in enumerate(CELL_TYPES):
         color = COLOR_MAP[label]
         d = ImageDraw.Draw(canvas)
         dot_place = (start_w, start_h, start_w + legend_dot_size, start_h + legend_dot_size)
@@ -261,10 +342,12 @@ def main():
     for index in val_indices:
         feature, label, sample_cells = dataset.example_samples(index)
         attn_weight = att_plotter.make_att_weight(sample_cells, feature)
-        _, bins = pd.qcut(attn_weight, 10, retbins=True)
-        bin_strs = bin_str(bins)
-        rank_map = get_rank_map(attn_weight, bins)
-        plot_cell_att_rank(sample_cells, rank_map, attn_weight, img_loader, bin_strs, marker=label)
+        # _, bins = pd.qcut(attn_weight, 10, retbins=True)
+        # bin_strs = bin_str(bins)
+        # rank_map = get_rank_map(attn_weight, bins)
+        # plot_cell_att_rank_old(sample_cells, rank_map, attn_weight, img_loader, bin_strs, marker=label)
+
+        plot_cell_att_rank(sample_cells, attn_weight, img_loader, marker=label)
         # df = att_plotter.make_att_df(sample_cells, feature)
         # att_plotter.plot_on_df(df, Path("data/att"), img_loader, marker=label)
 
@@ -284,5 +367,5 @@ def add_pred_info(att_dir, ret_p):
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     add_pred_info("att_rank", "slide_vectors.json")

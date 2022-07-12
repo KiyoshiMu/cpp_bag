@@ -318,7 +318,7 @@ def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=
         ),
     )
     if include_random:
-        random_title = "Random"
+        random_title = "Dummy"
         fig.add_trace(
             go.Scatter(
                 x=x,
