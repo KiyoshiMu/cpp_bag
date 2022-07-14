@@ -110,8 +110,11 @@ class CustomImageDataset(Dataset):
         cell_threshold=300,
         with_MK=True,
         all_cells: Optional[list[list[CellInstance]]] = None,
+        limit=None,
     ):
         _slides = [p for p in feat_dir.glob("*.json")]
+        if limit is not None:
+            _slides = _slides[:limit]
         if all_cells is None:
             all_cells = thread_map(self._load_feats, _slides)
         _p_cells = [

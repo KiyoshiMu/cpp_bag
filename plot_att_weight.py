@@ -149,9 +149,9 @@ def plot_cell_att_rank(sample_cells:List[data.CellInstance], attn_output_weights
     canvas = Image.new("RGB", (canvas_w, canvas_h), color=(255, 255, 255))
 
     row_idx = 0
-    type_row_idx = {}
+    cell_type_row_idx = {}
     for _type, locs in sorted_type_count_pair:
-        type_row_idx[_type] = row_idx
+        cell_type_row_idx[_type] = row_idx
         for col_idx, loc in enumerate(locs):
             cell = sample_cells[loc]
             cell_name = cell.name
@@ -165,21 +165,21 @@ def plot_cell_att_rank(sample_cells:List[data.CellInstance], attn_output_weights
         row_idx = row_loc + 1
     
     d = ImageDraw.Draw(canvas)
-    for rank, (_type, locs) in enumerate(sorted_type_count_pair):
-        type_idx = type_row_idx[_type]
+    for rank, (_type, locs) in enumerate(sorted_type_count_pair, start=1):
+        type_idx = cell_type_row_idx[_type]
         avg_att = sum(attn_output_weights[loc] for loc in locs) / len(locs)
         d.text((text_padding, type_idx * cell_size), str(rank), fill=(0, 0, 0), font=rank_font)
         d.text((text_padding, type_idx * cell_size + rank_font_size + 4), _type, fill=(0, 0, 0), font=att_font)
         d.text((text_padding, type_idx * cell_size + rank_font_size + att_font_size + 8), f"{avg_att:.4f}", fill=(0, 0, 0), font=att_font)
+    
     start_w = canvas_w - legend_right_w + text_padding * 4
     start_h = text_padding
-    
-    for _, label in enumerate(CELL_TYPES):
-        color = COLOR_MAP[label]
+    for cell_type in cell_type_row_idx.keys():
+        color = COLOR_MAP[cell_type]
         d = ImageDraw.Draw(canvas)
         dot_place = (start_w, start_h, start_w + legend_dot_size, start_h + legend_dot_size)
         d.rectangle(dot_place, fill=color)        
-        d.text((start_w + legend_dot_size + text_padding, start_h), label, fill=(0, 0, 0), font=legend_font)
+        d.text((start_w + legend_dot_size + text_padding, start_h), cell_type, fill=(0, 0, 0), font=legend_font)
         start_h += legend_gap
     
     
@@ -351,7 +351,7 @@ def main():
         # df = att_plotter.make_att_df(sample_cells, feature)
         # att_plotter.plot_on_df(df, Path("data/att"), img_loader, marker=label)
 
-
+    zip_ref.close()
 
 def add_pred_info(att_dir, ret_p):
     with open(ret_p, "r") as f:
