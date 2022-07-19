@@ -10,8 +10,6 @@ from sklearn.dummy import DummyClassifier
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.neighbors import KNeighborsClassifier
 
-from cpp_bag.io_utils import pkl_load
-from cpp_bag.io_utils import simplify_label
 
 
 def load_size(fp="data/slide_size.csv"):
@@ -35,51 +33,6 @@ def create_knn(refer_embed: np.ndarray, labels, use_all=False):
         labels,
     )
     return knn
-
-
-def performance_measure(train_pkl_p, val_pkl_p, mark="pool", random_base=False, dst=Path("data"),):
-    train = pkl_load(train_pkl_p)
-    test = pkl_load(val_pkl_p)
-    labels = [simplify_label(l) for l in train["labels"]]
-    unique_labels = sorted(set(labels))
-    refer_embed = train["embed_pool"]
-    knn = create_knn(refer_embed, labels)
-    print(refer_embed.shape)
-    y_pred = knn.predict(test["embed_pool"])
-    y_true = [simplify_label(l) for l in test["labels"]]
-    dump_metric(y_true, y_pred, unique_labels, dst=dst/ f"{mark}_metric.csv")
-
-    if random_base:
-        dummy = DummyClassifier(strategy="stratified", random_state=42).fit(
-            refer_embed,
-            labels,
-        )
-        y_pred = dummy.predict(test["embed_pool"])
-        dump_metric(y_true, y_pred, unique_labels, dst="data/dummy_metric.csv")
-
-
-def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):
-    precision, recall, fscore, _ = precision_recall_fscore_support(
-        y_true,
-        y_pred,
-        labels=unique_labels,
-    )
-    # print(precision, recall, fscore)
-    if to_csv:
-        metric_df = pd.DataFrame(
-            dict(precision=precision, recall=recall, fscore=fscore),
-            index=unique_labels,
-        )
-
-        metric_df.to_csv(dst)
-
-
-def cal_weighted_acc(label, *preds):
-    acc = 0
-    for rank, pred in enumerate(preds, start=1):
-        confident = float(pred.split(":")[-1])
-        acc += int(label in pred and "0.00" not in pred) * confident
-    return acc
 
 
 def proba_to_dfDict(pred_probs, classes_, val_labels):
@@ -125,16 +78,28 @@ def proba_to_dfDict(pred_probs, classes_, val_labels):
     return _df
 
 
-def top3_summary(cases):
-    correct_cases = cases[cases["top3_correct"]]
-    incorrect_cases = cases[~cases["top3_correct"]]
-    weighted_acc_mean = cases["weighted_acc"].mean()
-    summary = {
-        "correct": (len(correct_cases), len(correct_cases) / len(cases)),
-        "incorrect": (len(incorrect_cases), len(incorrect_cases) / len(cases)),
-        "weighted_acc": weighted_acc_mean,
-    }
-    return summary
+def cal_weighted_acc(label, *preds):
+    acc = 0
+    for _, pred in enumerate(preds, start=1):
+        confident = float(pred.split(":")[-1])
+        acc += int(label in pred and "0.00" not in pred) * confident
+    return acc
+
+
+def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):
+    precision, recall, fscore, _ = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        labels=unique_labels,
+    )
+    # print(precision, recall, fscore)
+    if to_csv:
+        metric_df = pd.DataFrame(
+            dict(precision=precision, recall=recall, fscore=fscore),
+            index=unique_labels,
+        )
+
+        metric_df.to_csv(dst)
 
 
 def dummy_exp(refer_embed, refer_labels, test_embed, test_labels, dst):
@@ -143,16 +108,5 @@ def dummy_exp(refer_embed, refer_labels, test_embed, test_labels, dst):
         refer_labels,
     )
     classes_ = dummy.classes_
-    pred_probs = dummy.predict_proba(test_embed)
     pred = dummy.predict(test_embed)
     dump_metric(test_labels, pred, classes_, dst)
-    _df = proba_to_dfDict(pred_probs, classes_, test_labels)
-    summary = top3_summary(pd.DataFrame(_df))
-    return summary
-
-
-if __name__ == "__main__":
-    performance_measure(
-        "data/train_embed_pool.pkl",
-        "data/val_embed_pool.pkl",
-    )

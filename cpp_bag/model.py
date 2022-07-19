@@ -69,7 +69,6 @@ class BagPooling(nn.Module):
 
 def encoder_training(
     train_ds,
-    val_ds,
     in_dim=256,
     dst_dir=Path("."),
     num_epochs=50,
@@ -81,11 +80,9 @@ def encoder_training(
     model = BagPooling(in_dim=in_dim, out_dim=256)
     task = TrainTask(
         train_ds,
-        val_ds,
         model,
         num_workers=num_workers,
         batch_size=64,
-        k=None,
         patience=10,
     )
     task.run(num_epochs)

@@ -20,7 +20,6 @@ from cpp_bag.performance import dummy_exp
 from cpp_bag.performance import dump_metric
 from cpp_bag.performance import load_size
 from cpp_bag.performance import proba_to_dfDict
-from cpp_bag.performance import top3_summary
 
 TEMPLATE = "plotly_white"
 FONT = "Arial"
@@ -87,14 +86,14 @@ def make_plot(embed, labels, index, mark="", write=True, dst=Path(".")):
             "index": index,
         },
     )
-    fig = state_plot(plot_df, thresh=10, use_simplify=True)
+    fig = plot_embedding_sketch(plot_df, thresh=10, use_simplify=True)
     if write:
-        plot_df.to_csv(str(dst / f"{mark}plot_df.csv"))
-        fig.write_html(str(dst / f"{mark}umap.html"))
+        plot_df.to_csv(str(dst / f"{mark}_pre_plot_df.csv"))
+        fig.write_html(str(dst / f"{mark}_pre_umap.html"))
     return fig
 
 
-def state_plot(df: pd.DataFrame, thresh=15, use_simplify=False):
+def plot_embedding_sketch(df: pd.DataFrame, thresh=15, use_simplify=False):
     if use_simplify:
         df["marker_base"] = df["label"].map(simplify_label)
     else:
@@ -163,12 +162,12 @@ def state_plot(df: pd.DataFrame, thresh=15, use_simplify=False):
     return fig
 
 
-
-def slide_vectors(
+def measure_slide_vectors(
     train_pkl_p,
     val_pkl_p,
     val_entropy: Optional[list] = None,
     mark="pool",
+    dummy_baseline=True,
     dst=Path("."),
 ):
     train = pkl_load(train_pkl_p)
@@ -203,23 +202,20 @@ def slide_vectors(
         _df["pred_entropy"] = val_entropy
 
     plot_df = pd.DataFrame(_df)
-    summary = top3_summary(plot_df)
     dump_metric(val_labels, preds, classes_, dst / f"{mark}_metric.csv")
-    dummy_summary = dummy_exp(
-        refer_embed,
-        labels,
-        val_embed,
-        val_labels,
-        dst / f"{mark}_dummy_metric.csv",
-    )
-    # print("summary", summary)
-    # print("dummy_summary", dummy_summary)
-    json_dump(summary, dst / f"{mark}_slide_summary.json")
-    json_dump(dummy_summary, dst / f"{mark}_slide_dummy_summary.json")
+    if dummy_baseline:
+        dummy_exp(
+            refer_embed,
+            labels,
+            val_embed,
+            val_labels,
+            dst / f"{mark}_dummy_metric.csv",
+        )
     plot_df.to_json(str(dst / f"{mark}.json"), orient="records")
     fig = plot_embedding(plot_df)
     fig.write_html(str(dst / f"{mark}umap.html"))
     return fig
+
 
 ACCR_LABLE = {
     "normal": "NORMAL",
@@ -229,6 +225,7 @@ ACCR_LABLE = {
     "plasma": "PCN",
     "other": "OTHER",
 }
+
 
 def plot_embedding(df):
     df["label"] = df["label"].map(ACCR_LABLE)
@@ -262,7 +259,10 @@ def plot_embedding(df):
     )
     return fig
 
-def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=False, include_avg=False):
+
+def plot_tag_perf_with_std(
+    performance, main_metrics="F1 Score", include_random=False, include_avg=False
+):
     #  perf_average, perf_err
 
     performance.sort_values(
@@ -338,21 +338,23 @@ def plot_tag_perf_with_std(performance, main_metrics="F1 Score", include_random=
         )
     if include_avg:
         avg_title = "Avg"
-        fig.add_trace(go.Scatter(
-            x=x,
-            y=performance[f"{avg_title}_mean"],
-            error_y=dict(
-                color="lightgray",
-                type="data",
-                array=performance[f"{avg_title}_std"],
-                visible=False,
-            ),
-            marker_color="orange",
-            mode="markers+text",
-            text=[f"{v:.02f}" for v in performance[f"{avg_title}_mean"]],
-            marker_size=10,
-            name=f"{avg_title} {main_metrics}",
-        )),
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=performance[f"{avg_title}_mean"],
+                error_y=dict(
+                    color="lightgray",
+                    type="data",
+                    array=performance[f"{avg_title}_std"],
+                    visible=False,
+                ),
+                marker_color="orange",
+                mode="markers+text",
+                text=[f"{v:.02f}" for v in performance[f"{avg_title}_mean"]],
+                marker_size=10,
+                name=f"{avg_title} {main_metrics}",
+            )
+        ),
     fig.update_traces(textposition="middle right")
 
     x_loc = len(performance) - 2

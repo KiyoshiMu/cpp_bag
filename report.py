@@ -10,8 +10,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 
 from cpp_bag.io_utils import json_load
-from cpp_bag.performance import performance_measure
-from cpp_bag.plot import plot_embedding, plot_tag_perf_with_std
+from cpp_bag.plot import measure_slide_vectors, plot_embedding, plot_tag_perf_with_std
 
 
 class AdjustFactor(NamedTuple):
@@ -275,7 +274,7 @@ def avg_pool_f1():
         DST = Path("data") / MARK
         train_pkl = DST / f"train_avg{MARK}_pool.pkl"
         val_pkl = DST / f"val_avg{MARK}_pool.pkl"
-        performance_measure(train_pkl, val_pkl, mark=f"{MARK}_avg", dst=DST, random_base=False)
+        measure_slide_vectors(train_pkl, val_pkl, mark=f"{MARK}_avg", dst=DST, dummy_baseline=False)
 
 if __name__ == "__main__":
     # main(export=False)

@@ -9,7 +9,6 @@ import pytorch_metric_learning.utils.logging_presets as LP
 import torch
 from pytorch_metric_learning import losses
 from pytorch_metric_learning import miners
-from pytorch_metric_learning import samplers
 from pytorch_metric_learning import testers
 from pytorch_metric_learning import trainers
 
@@ -31,20 +30,18 @@ class TrainTask:
     def __init__(
         self,
         train_dataset,
-        val_dataset,
         model,
         batch_size=96,
         csv_folder="logs",
         num_workers=None,
         patience=5,
-        k=22,
+        k="max_bin_count",
     ) -> None:
         self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
         self.model = model
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.device = device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("device:", self.device)
         self.timestamp = self._get_timestamp()
         if num_workers is None:
             num_workers = os.cpu_count()
@@ -56,15 +53,8 @@ class TrainTask:
         # Set the mining function
         miner = miners.MultiSimilarityMiner()
 
-        # Set the dataloader sampler
-        # sampler = samplers.MPerClassSampler(
-        #     train_dataset.targets,
-        #     m=int(batch_size / 8),
-        #     length_before_new_iter=len(train_dataset),
-        # )
-
         # Set other training parameters
-        trunk = torch.nn.DataParallel(self.model).to(device)
+        trunk = torch.nn.DataParallel(self.model).to(self.device)
         trunk_optimizer = torch.optim.AdamW(
             trunk.parameters(),
             lr=1e-4,
@@ -76,12 +66,12 @@ class TrainTask:
         loss_funcs = {"metric_loss": loss}
         trainer_cls = trainers.MetricLossOnly
         mining_funcs = {"tuple_miner": miner}
-        accuracy_calculator = AC.AccuracyCalculator(k=k)
+        accuracy_calculator = AC.AccuracyCalculator(k=k, device=self.device)
 
         self.log_folder = f"{csv_folder}/{self.timestamp}"
         record_keeper, _, _ = LP.get_record_keeper(self.log_folder)
 
-        dataset_dict = {"val": val_dataset}
+        dataset_dict = {"val": train_dataset}
         model_folder = f"saved_models/{self.timestamp}"
 
         self.hooks = LP.HookContainer(
@@ -103,7 +93,7 @@ class TrainTask:
             self.tester,
             dataset_dict,
             model_folder,
-            test_interval=1,
+            test_interval=10,
             patience=patience,
         )
 
