@@ -20,36 +20,34 @@ class Planner:
         self.torch_ranGen = torch.Generator().manual_seed(42)
         self.with_mk = True
         print(torch.cuda.is_available())
-
+        all_cells = data.load_cells()
+        self.dataset = data.CustomImageDataset(
+            data.FEAT_DIR,
+            data.LABEL_DIR,
+            bag_size=256,
+            cell_threshold=300,
+            with_MK=self.with_mk,
+            all_cells=all_cells,
+        )
     def run(self, n=5):
         for trial in range(n):
             marker = str(trial)
             dst_dir = self.base / f"trial{marker}"
             dst_dir.mkdir(parents=True, exist_ok=True)
             split_json_p = dst_dir / f"split{marker}.json"
-            model_path, dataset = self.train_model(split_json_p, dst_dir)
+            model_path = self.train_model(split_json_p, dst_dir)
             make_embeddings(
                 model_path,
                 split_json_p,
-                dataset=dataset,
+                dataset=self.dataset,
                 dst_dir=dst_dir,
                 marker=marker,
             )
 
     def train_model(self, split_json_p: str, dst):
         in_dim = 256
-        with_MK = self.with_mk
         generator = self.torch_ranGen
-
-        all_cells = data.load_cells()
-        dataset = data.CustomImageDataset(
-            data.FEAT_DIR,
-            data.LABEL_DIR,
-            bag_size=256,
-            cell_threshold=300,
-            with_MK=with_MK,
-            all_cells=all_cells,
-        )
+        dataset = self.dataset
         size = len(dataset)
         print("size:", size)
         train_size = int(size * 0.5)
@@ -65,11 +63,11 @@ class Planner:
         model_path = encoder_training(
             train_set,
             in_dim=in_dim,
-            num_epochs=250,
+            num_epochs=100,
             num_workers=1,
             dst_dir=dst,
         )
-        return model_path, dataset
+        return model_path
 
 
 def make_embeddings(

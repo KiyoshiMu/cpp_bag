@@ -35,13 +35,13 @@ class TrainTask:
         csv_folder="logs",
         num_workers=None,
         patience=5,
-        k="max_bin_count",
+        k=None,
     ) -> None:
         self.train_dataset = train_dataset
         self.model = model
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print("device:", self.device)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device
         self.timestamp = self._get_timestamp()
         if num_workers is None:
             num_workers = os.cpu_count()
@@ -54,7 +54,7 @@ class TrainTask:
         miner = miners.MultiSimilarityMiner()
 
         # Set other training parameters
-        trunk = torch.nn.DataParallel(self.model).to(self.device)
+        trunk = torch.nn.DataParallel(self.model).to(device)
         trunk_optimizer = torch.optim.AdamW(
             trunk.parameters(),
             lr=1e-4,
@@ -66,7 +66,7 @@ class TrainTask:
         loss_funcs = {"metric_loss": loss}
         trainer_cls = trainers.MetricLossOnly
         mining_funcs = {"tuple_miner": miner}
-        accuracy_calculator = AC.AccuracyCalculator(k=k, device=self.device)
+        accuracy_calculator = AC.AccuracyCalculator(k=k)
 
         self.log_folder = f"{csv_folder}/{self.timestamp}"
         record_keeper, _, _ = LP.get_record_keeper(self.log_folder)
@@ -93,7 +93,7 @@ class TrainTask:
             self.tester,
             dataset_dict,
             model_folder,
-            test_interval=10,
+            test_interval=1,
             patience=patience,
         )
 

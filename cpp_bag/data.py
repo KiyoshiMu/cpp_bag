@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 import pickle
-from collections import Counter
-from collections import defaultdict
+from collections import defaultdict, Counter
 from itertools import chain
 from math import ceil
 from pathlib import Path
 from random import sample
-from typing import NamedTuple
 from typing import Optional
+from typing import NamedTuple
 from typing import Sequence
 
 import numpy as np
@@ -31,10 +30,8 @@ Histiocyte,Mast_cell""".split(
         ",",
     ),
 )
-
-MaskMap = dict[str, torch.Tensor]
-
 CELL_FEATURE_SIZE = 256
+MaskMap = dict[str, torch.Tensor]
 
 
 class CellInstance(NamedTuple):
@@ -93,7 +90,7 @@ def _load_cell_feats(feat_path):
                 cell := CellInstance(
                     name=info[0],
                     label=info[1],
-                    feature=info[2][:256],
+                    feature=info[2][:CELL_FEATURE_SIZE],
                 )
             ).label
             in Lineage
@@ -111,12 +108,14 @@ class CustomImageDataset(Dataset):
         with_MK=True,
         all_cells: Optional[list[list[CellInstance]]] = None,
         limit=None,
+        enable_mask=False,
     ):
+        
         _slides = [p for p in feat_dir.glob("*.json")]
         if limit is not None:
             _slides = _slides[:limit]
         if all_cells is None:
-            all_cells = thread_map(self._load_feats, _slides)
+            all_cells = thread_map(_load_cell_feats, _slides)
         _p_cells = [
             (p, cells)
             for p, cells in zip(_slides, all_cells)
@@ -137,18 +136,15 @@ class CustomImageDataset(Dataset):
         ]
         print("\nslide_portion:", self.slide_portion[:3])
         # index is used to map cell_groups to features
-        self.cells = [cells for _, cells in _p_cells]
         self.features = [
             torch.as_tensor([cell.feature for cell in cells], dtype=torch.float32)
-            for cells in self.cells
+            for _, cells in _p_cells
         ]
         self.cell_groups = [
-            self._group_by_label([cell.label for cell in cells]) for cells in self.cells
+            self._group_by_label([cell.label for cell in cells])
+            for _, cells in _p_cells
         ]
         self.with_MK = with_MK
-        self._mask_map: Optional[MaskMap] = None
-        self.mask_tensor = torch.zeros(CELL_FEATURE_SIZE, dtype=torch.float32)
-        self._masking_MK = False
         if with_MK:
             self.MK_features = [
                 torch.as_tensor(
@@ -157,22 +153,12 @@ class CustomImageDataset(Dataset):
                 )
                 for slide_name in _slide_names
             ]
-
-    def _load_feats(self, feat_path):
-        with open(feat_path, "r") as f:
-            feats = [
-                cell
-                for info in json.load(f)
-                if (
-                    cell := CellInstance(
-                        name=info[0],
-                        label=info[1],
-                        feature=info[2][:CELL_FEATURE_SIZE],
-                    )
-                ).label
-                in Lineage
-            ]
-            return feats
+        self.enable_mask = enable_mask
+        if enable_mask:
+            self.cells = [cells for _, cells in _p_cells]
+            self._mask_map: Optional[MaskMap] = None
+            self.mask_tensor = torch.zeros(CELL_FEATURE_SIZE, dtype=torch.float32)
+            self._masking_MK = False
 
     def _load_doc(self, doc_path):
         with open(doc_path, "r") as f:
@@ -208,6 +194,47 @@ class CustomImageDataset(Dataset):
     def __len__(self):
         return len(self.targets)
 
+    def __getitem__(self, idx):
+        label = self.targets[idx]
+        slide_portion = self.slide_portion[idx]
+        group = self.cell_groups[idx]
+        if not self.enable_mask:
+            feature_bag = torch.index_select(
+                self.features[idx],
+                0,
+                torch.as_tensor(self._sample_idx(slide_portion, group)),
+            )
+            if self.with_MK:
+                feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
+            else:
+                feature = feature_bag
+            return feature, label
+        
+        feature_bag = torch.index_select(
+            self._get_features_by_idx(idx),
+            0,
+            torch.as_tensor(self._sample_idx(slide_portion, group)),
+        )
+        if self.with_MK:
+            if self._masking_MK:
+                feature = torch.cat(
+                    [feature_bag, self.mask_tensor.unsqueeze(0)], dim=0
+                )
+            else:
+                feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
+        else:
+            feature = feature_bag
+        return feature, label
+
+    def _sample_idx(self, slide_portion: dict[str, int], group: dict[str, list[int]]):
+
+        out = list(
+            chain.from_iterable(
+                sample(group[k], k=v) for k, v in slide_portion.items()
+            ),
+        )
+        return out
+
     def _get_features_by_idx(self, idx: int):
         tensor = self.features[idx]
         if self._mask_map is None:
@@ -224,7 +251,7 @@ class CustomImageDataset(Dataset):
         group = self.cell_groups[idx]
         sample_indices = self._sample_idx(slide_portion, group)
         cells = self.cells[idx]
-        sample_cells =[cells[i] for i in sample_indices]
+        sample_cells = [cells[i] for i in sample_indices]
         # sample_cell_labels = [sample_cells[i].label for i in sample_indices]
         feature_bag = torch.index_select(
             self._get_features_by_idx(idx),
@@ -235,7 +262,7 @@ class CustomImageDataset(Dataset):
             feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
         else:
             feature = feature_bag
-        return feature,self.le.inverse_transform([label])[0] , sample_cells
+        return feature, self.le.inverse_transform([label])[0], sample_cells
 
     def setup_mask(self, cell_type: str):
         mask_info = {}
@@ -252,11 +279,13 @@ class CustomImageDataset(Dataset):
         else:
             self._masking_MK = False
             mask_map = {}
-            
+
             for slide_idx, name in enumerate(self.slide_names):
                 slide_cells = self.cells[slide_idx]
                 mask_idx = [
-                    idx for idx, cell in enumerate(slide_cells) if cell.label == cell_type
+                    idx
+                    for idx, cell in enumerate(slide_cells)
+                    if cell.label == cell_type
                 ]
                 mask_flag = np.zeros(len(slide_cells), dtype=bool)
                 mask_flag[mask_idx] = True
@@ -267,31 +296,3 @@ class CustomImageDataset(Dataset):
                 }
             self._mask_map = mask_map
         return mask_info
-
-    def __getitem__(self, idx):
-
-        label = self.targets[idx]
-        slide_portion = self.slide_portion[idx]
-        group = self.cell_groups[idx]
-        feature_bag = torch.index_select(
-            self._get_features_by_idx(idx),
-            0,
-            torch.as_tensor(self._sample_idx(slide_portion, group)),
-        )
-        if self.with_MK:
-            if self._masking_MK:
-                feature = torch.cat([feature_bag, self.mask_tensor.unsqueeze(0)], dim=0)
-            else:
-                feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
-        else:
-            feature = feature_bag
-        return feature, label
-
-    def _sample_idx(self, slide_portion: dict[str, int], group: dict[str, list[int]]):
-
-        out = list(
-            chain.from_iterable(
-                sample(group[k], k=v) for k, v in slide_portion.items()
-            ),
-        )
-        return out
