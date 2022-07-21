@@ -34,7 +34,7 @@ class TrainTask:
         batch_size=96,
         csv_folder="logs",
         num_workers=None,
-        patience=5,
+        patience=3,
         k=None,
     ) -> None:
         self.train_dataset = train_dataset
@@ -57,7 +57,7 @@ class TrainTask:
         trunk = torch.nn.DataParallel(self.model).to(device)
         trunk_optimizer = torch.optim.AdamW(
             trunk.parameters(),
-            lr=1e-4,
+            lr=1e-3,
             weight_decay=0.01,
         )
 
@@ -93,7 +93,7 @@ class TrainTask:
             self.tester,
             dataset_dict,
             model_folder,
-            test_interval=1,
+            test_interval=5,
             patience=patience,
         )
 

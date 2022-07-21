@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import torch
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from cpp_bag import data
 from cpp_bag.embed import ds_avg
@@ -17,7 +18,6 @@ from cpp_bag.plot import measure_slide_vectors
 class Planner:
     def __init__(self) -> None:
         self.base = Path("experiments")
-        self.torch_ranGen = torch.Generator().manual_seed(42)
         self.with_mk = True
         print(torch.cuda.is_available())
         all_cells = data.load_cells()
@@ -29,11 +29,28 @@ class Planner:
             with_MK=self.with_mk,
             all_cells=all_cells,
         )
+
     def run(self, n=5):
-        for trial in range(n):
+        sss = StratifiedShuffleSplit(n_splits=n, test_size=0.5, random_state=0)
+        x = list(range(len(self.dataset)))
+        y = self.dataset.targets
+        for trial, (train_index, test_index) in enumerate(sss.split(x, y)):
             marker = str(trial)
             dst_dir = self.base / f"trial{marker}"
             dst_dir.mkdir(parents=True, exist_ok=True)
+            split_json_p = dst_dir / f"split{marker}.json"
+            with open(split_json_p, "w") as f:
+                json.dump(
+                    dict(
+                        train=train_index.tolist(),
+                        val=test_index.tolist(),
+                    ),
+                    f,
+                )
+
+        for trial in range(n):
+            marker = str(trial)
+            dst_dir = self.base / f"trial{marker}"
             split_json_p = dst_dir / f"split{marker}.json"
             model_path = self.train_model(split_json_p, dst_dir)
             make_embeddings(
@@ -46,24 +63,15 @@ class Planner:
 
     def train_model(self, split_json_p: str, dst):
         in_dim = 256
-        generator = self.torch_ranGen
         dataset = self.dataset
-        size = len(dataset)
-        print("size:", size)
-        train_size = int(size * 0.5)
-        val_size = size - train_size
-        _train_set, _val_set = torch.utils.data.random_split(
-            dataset,
-            [train_size, val_size],
-            generator=generator,
-        )
-        with open(split_json_p, "w") as f:
-            json.dump(dict(train=_train_set.indices, val=_val_set.indices), f)
-        train_set = data.Subset(dataset, _train_set.indices)
+        with open(split_json_p, "r") as f:
+            cache = json.load(f)
+            train_indices = cache["train"]
+        train_set = data.Subset(dataset, train_indices)
         model_path = encoder_training(
             train_set,
             in_dim=in_dim,
-            num_epochs=100,
+            num_epochs=300,
             num_workers=1,
             dst_dir=dst,
         )
@@ -131,6 +139,7 @@ def make_embeddings(
         dst=dst_dir,
         dummy_baseline=False,
     )
+
 
 if __name__ == "__main__":
     planner = Planner()

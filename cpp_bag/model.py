@@ -83,7 +83,7 @@ def encoder_training(
         model,
         num_workers=num_workers,
         batch_size=64,
-        patience=10,
+        patience=3,
     )
     task.run(num_epochs)
     model_path = str(dst_dir / f"pool-{task.timestamp}.pth")
