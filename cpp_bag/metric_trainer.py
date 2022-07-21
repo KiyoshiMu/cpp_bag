@@ -57,7 +57,7 @@ class TrainTask:
         trunk = torch.nn.DataParallel(self.model).to(device)
         trunk_optimizer = torch.optim.AdamW(
             trunk.parameters(),
-            lr=1e-3,
+            lr=1e-4,
             weight_decay=0.01,
         )
 

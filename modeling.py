@@ -17,9 +17,9 @@ from cpp_bag.plot import measure_slide_vectors
 
 class Planner:
     def __init__(self) -> None:
-        self.base = Path("experiments")
+        self.base = Path("experiments1")
         self.with_mk = True
-        print(torch.cuda.is_available())
+        print(f"torch.cuda.is_available: {torch.cuda.is_available()}")
         all_cells = data.load_cells()
         self.dataset = data.CustomImageDataset(
             data.FEAT_DIR,
@@ -31,7 +31,7 @@ class Planner:
         )
 
     def run(self, n=5):
-        sss = StratifiedShuffleSplit(n_splits=n, test_size=0.5, random_state=0)
+        sss = StratifiedShuffleSplit(n_splits=n, test_size=0.5, random_state=42)
         x = list(range(len(self.dataset)))
         y = self.dataset.targets
         for trial, (train_index, test_index) in enumerate(sss.split(x, y)):
@@ -49,16 +49,15 @@ class Planner:
                 )
 
         for trial in range(n):
-            marker = str(trial)
-            dst_dir = self.base / f"trial{marker}"
-            split_json_p = dst_dir / f"split{marker}.json"
+            dst_dir = self.base / f"trial{trial}"
+            split_json_p = dst_dir / f"split{trial}.json"
             model_path = self.train_model(split_json_p, dst_dir)
             make_embeddings(
                 model_path,
                 split_json_p,
                 dataset=self.dataset,
                 dst_dir=dst_dir,
-                marker=marker,
+                trial=str(trial),
             )
 
     def train_model(self, split_json_p: str, dst):
@@ -71,7 +70,7 @@ class Planner:
         model_path = encoder_training(
             train_set,
             in_dim=in_dim,
-            num_epochs=300,
+            num_epochs=250,
             num_workers=1,
             dst_dir=dst,
         )
@@ -82,7 +81,7 @@ def make_embeddings(
     model_path: str,
     split_json_p: str,
     dst_dir: Path,
-    marker: str,
+    trial: str,
     dataset=None,
 ):
     in_dim = 256
@@ -103,18 +102,19 @@ def make_embeddings(
         train_set,
         embed_func,
         dst_dir,
-        name_mark=f"train{marker}",
+        name_mark=f"train{trial}",
     )
     val_pkl_dst, _ = ds_project(
         val_set,
         embed_func,
         dst_dir,
-        name_mark=f"val{marker}",
+        name_mark=f"val{trial}",
     )
     measure_slide_vectors(
         train_pkl_dst,
         val_pkl_dst,
-        mark=f"pool{marker}",
+        mark="pool",
+        trial=trial,
         dummy_baseline=True,
         dst=dst_dir,
     )
@@ -124,18 +124,19 @@ def make_embeddings(
         train_set,
         avg_func,
         dst_dir,
-        name_mark=f"train_avg{marker}",
+        name_mark=f"train_avg{trial}",
     )
     val_avg_pkl_dst, _ = ds_project(
         val_set,
         avg_func,
         dst_dir,
-        name_mark=f"val_avg{marker}",
+        name_mark=f"val_avg{trial}",
     )
     measure_slide_vectors(
         train_avg_pkl_dst,
         val_avg_pkl_dst,
-        mark=f"avg{marker}",
+        mark="avg",
+        trial=trial,
         dst=dst_dir,
         dummy_baseline=False,
     )

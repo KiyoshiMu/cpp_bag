@@ -167,6 +167,7 @@ def measure_slide_vectors(
     val_pkl_p,
     val_entropy: Optional[list] = None,
     mark="pool",
+    trial="",
     dummy_baseline=True,
     dst=Path("."),
 ):
@@ -202,18 +203,18 @@ def measure_slide_vectors(
         _df["pred_entropy"] = val_entropy
 
     plot_df = pd.DataFrame(_df)
-    dump_metric(val_labels, preds, classes_, dst / f"{mark}_metric.csv")
+    dump_metric(val_labels, preds, classes_, dst / f"{mark}{trial}_metric.csv")
     if dummy_baseline:
         dummy_exp(
             refer_embed,
             labels,
             val_embed,
             val_labels,
-            dst / f"{mark}_dummy_metric.csv",
+            dst / f"dummy{trial}_metric.csv",
         )
-    plot_df.to_json(str(dst / f"{mark}.json"), orient="records")
+    plot_df.to_json(str(dst / f"{mark}{trial}.json"), orient="records")
     fig = plot_embedding(plot_df)
-    fig.write_html(str(dst / f"{mark}umap.html"))
+    fig.write_html(str(dst / f"{mark}{trial}_umap.html"))
     return fig
 
 
