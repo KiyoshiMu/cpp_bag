@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 
 from cpp_bag.io_utils import json_load
-from cpp_bag.plot import measure_slide_vectors, plot_embedding, plot_tag_perf_with_std
+from cpp_bag.plot import measure_slide_vectors, plot_embedding
 
 
 class AdjustFactor(NamedTuple):
@@ -196,67 +196,15 @@ def main(adjust_factor: AdjustFactor = None, export=False):
     print(df.agg(["mean", "std"]))
 
 
-METRICS_RENAME_MAP = {
-    "precision": "Precision",
-    "recall": "Recall",
-    "fscore": "F1 Score",
-}
 
 
-def merge_metrics(extra_mark="", random_csv=None, write_pdf=False, avg_csv=None):
-    metrics = ["precision", "recall", "fscore"]
-    records = defaultdict(list)
-    for trial in range(5):
-        MARK = str(trial)
-        DST = Path("data") / MARK
-        ret = pd.read_csv(DST / f"{MARK}{extra_mark}_metric.csv", index_col=0)
-        labels = ret.index.to_list()
-        for label in labels:
-            for metric in metrics:
-                records[f"{label}|{metric}"].append(ret.loc[label, metric])
-    df = pd.DataFrame(records)
-    df.to_csv(f"metrics{extra_mark}.csv", index=False)
-    df_agg = df.agg(["mean", "std"]).T
-    df_agg.to_csv(f"metrics{extra_mark}_agg.csv")
-    metrics_records = defaultdict(list)
-
-    for row in df_agg.iterrows():
-        _, _metric = row[0].split("|")
-        _mean, _std = row[1]
-        metrics_records[f"{METRICS_RENAME_MAP[_metric]}_mean"].append(_mean)
-        metrics_records[f"{METRICS_RENAME_MAP[_metric]}_std"].append(_std)
-    df_metrics = pd.DataFrame(metrics_records, index=labels)
-    df_metrics_dst = f"metrics{extra_mark}_agg_T.csv"
-    df_metrics.to_csv(df_metrics_dst)
-
-    main_metrics = "F1 Score"
-    include_random = random_csv is not None
-    include_avg = avg_csv is not None
-    if include_random:
-        random_record_df = pd.read_csv(random_csv, index_col=0)
-        df_metrics["Dummy_mean"] = random_record_df[f"{main_metrics}_mean"]
-        df_metrics["Dummy_std"] = random_record_df[f"{main_metrics}_std"]
-    if include_avg:
-        print(f"Loading avg csv: {avg_csv}")
-        avg_record_df = pd.read_csv(avg_csv, index_col=0)
-        df_metrics["Avg_mean"] = avg_record_df[f"{main_metrics}_mean"]
-        df_metrics["Avg_std"] = avg_record_df[f"{main_metrics}_std"]
-    fig_metrics = plot_tag_perf_with_std(
-        df_metrics,
-        main_metrics,
-        include_random=include_random,
-        include_avg=include_avg,
-    )
-    fig_metrics.write_image(f"metrics{extra_mark}.jpg", scale=2)
-    if write_pdf:
-        fig_metrics.write_image(f"metrics{extra_mark}.pdf", format="pdf")
-    return df_metrics_dst
-
-def draw_embedding(df_p):
+def draw_embedding(df_p, suffix="", write_pdf=False, write_html=False):
     plot_df = pd.read_json(df_p, orient="records")
     fig = plot_embedding(plot_df)
-    fig.write_html("embedding.html")
-    # fig.write_image("embedding.pdf", format="pdf")
+    if write_html:
+        fig.write_html(f"embedding{suffix}.html")
+    if write_pdf:
+        fig.write_image(f"embedding{suffix}.pdf", format="pdf")
 
 def f1_only():
     for trial in range(5):
@@ -280,9 +228,10 @@ if __name__ == "__main__":
     # main(export=False)
     # adjust_factor = review_adjust()
     # main(adjust_factor=adjust_factor, export=True)
-    random_csv = merge_metrics(extra_mark="_dummy")
-    avg_csv = merge_metrics(extra_mark="_avg")
-    merge_metrics(random_csv=random_csv, write_pdf=True, avg_csv=avg_csv)
-    # draw_embedding("data/0/0.json")
+    # random_csv = merge_metrics(extra_mark="_dummy")
+    # avg_csv = merge_metrics(extra_mark="_avg")
+    # merge_metrics(random_csv=random_csv, write_pdf=True, avg_csv=avg_csv)
+    draw_embedding("experiments0/trial2/pool2.json", suffix="_pool", write_pdf=True)
+    draw_embedding("experiments0/trial2/avg2.json", suffix="_avg", write_pdf=True)
     # avg_pool_f1()
     # f1_only()

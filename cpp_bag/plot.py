@@ -334,7 +334,7 @@ def plot_tag_perf_with_std(
                 mode="markers+text",
                 text=[f"{v:.02f}" for v in performance[f"{random_title}_mean"]],
                 marker_size=10,
-                name=f"{random_title} {main_metrics}",
+                name=f"Empirical {main_metrics}",
             ),
         )
     if include_avg:

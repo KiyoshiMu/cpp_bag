@@ -12,7 +12,7 @@ METRICS_RENAME_MAP = {
     "fscore": "F1 Score",
     "Unnamed: 0": "Label",
 }
-BASE = Path("experiments1")
+BASE = Path("experiments0")
 TRAIL_N = 5
 LABEL_N = 6
 
@@ -77,7 +77,7 @@ def merge_metrics(
 
 
 if __name__ == "__main__":
-    dst_dir = Path("experiments1")
+    dst_dir = BASE
     random_csv = merge_metrics(prefix="dummy", dst_dir=dst_dir)
     avg_csv = merge_metrics(prefix="avg", dst_dir=dst_dir)
     merge_metrics(

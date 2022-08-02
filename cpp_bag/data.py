@@ -76,7 +76,10 @@ def dump_cells(feat_dir: Path):
         pickle.dump(cells, f)
 
 
-def load_cells():
+def load_cells(use_new=True) -> list[list[CellInstance]]:
+    if use_new:
+        with open("data/new_cells.pkl", "rb") as f:
+            return pickle.load(f)
     with open("data/cells.pkl", "rb") as f:
         return pickle.load(f)
 
@@ -116,6 +119,7 @@ class CustomImageDataset(Dataset):
             _slides = _slides[:limit]
         if all_cells is None:
             all_cells = thread_map(_load_cell_feats, _slides)
+        assert len(all_cells) == len(_slides)
         _p_cells = [
             (p, cells)
             for p, cells in zip(_slides, all_cells)
@@ -266,7 +270,7 @@ class CustomImageDataset(Dataset):
 
     def setup_mask(self, cell_type: str):
         mask_info = {}
-        if cell_type == "MK":
+        if cell_type == "Megakaryocyte":
             self._masking_MK = True
             self._mask_map = None
             for slide_idx, name in enumerate(self.slide_names):

@@ -40,6 +40,12 @@ CELL_TYPES: list[str] = [
     "Mast_cell",
 ]
 
+
+MODEL_P = "experiments0/trial2/pool-1659028139226.pth"
+DST_DIR = Path("att_rank0")
+SPLIT_P = "experiments0/trial2/split2.json"
+PRED_P = "experiments0/trial2/pool2.json"
+
 def bin_str(bins):
     out = []
     for idx, cut in enumerate(bins[:-1]):
@@ -118,7 +124,7 @@ def plot_cell_att_rank_old(sample_cells,rank_map, attn_output_weights,img_loader
         start_h += legend_gap
     
     
-    canvas.save(f"att_rank/{slide_name}-{marker}.png")
+    canvas.save(DST_DIR / f"{slide_name}-{marker}.png")
     
 def plot_cell_att_rank(sample_cells:List[data.CellInstance], attn_output_weights,img_loader, marker):
     rank_font_size = 24
@@ -183,7 +189,7 @@ def plot_cell_att_rank(sample_cells:List[data.CellInstance], attn_output_weights
         start_h += legend_gap
     
     
-    canvas.save(f"att_rank/{slide_name}-{marker}.png")
+    canvas.save(DST_DIR / f"{slide_name}-{marker}.png")
     
 def mk_color_map(cell_types):
     colors = px.colors.qualitative.Alphabet
@@ -195,7 +201,7 @@ WIDTH = 940
 HEIGHT = 600
 WHITE_CANVAS = Image.new("RGB", (WIDTH, HEIGHT), color=(255, 255, 255))
 class AttentionWeightPlotter:
-    def __init__(self, mp = "pool-1648142022566_MK.pth"):
+    def __init__(self, mp = MODEL_P):
         self.reducer = umap.UMAP()
         in_dim = 256
         model = BagPooling.from_checkpoint(mp, in_dim=in_dim)
@@ -324,11 +330,12 @@ def main():
         cell_threshold=300,
         with_MK=WITH_MK,
         all_cells=all_cells,
+        enable_mask=True
     )
     size = len(dataset)
     print("size:", size)
     
-    with open("data/split.json", "r") as f:
+    with open(SPLIT_P, "r") as f:
         cache = json.load(f)
         val_indices = cache["val"]
         # train_indices = cache["train"]
@@ -353,11 +360,11 @@ def main():
 
     zip_ref.close()
 
-def add_pred_info(att_dir, ret_p):
+def add_pred_info(att_dir:Path, ret_p):
     with open(ret_p, "r") as f:
         preds = json.load(f)
     pred_map = {p["index"]: (p["label"], p["pred"]) for p in preds}
-    att_dir_map = {f.stem.split("-")[0]: f for f in Path(att_dir).glob("*.png")}
+    att_dir_map = {f.stem.split("-")[0]: f for f in att_dir.glob("*.png")}
     for k, v in att_dir_map.items():
         label, pred = pred_map[k]
         att_label = v.stem.split("-")[1]
@@ -368,4 +375,4 @@ def add_pred_info(att_dir, ret_p):
 
 if __name__ == "__main__":
     main()
-    add_pred_info("att_rank", "slide_vectors.json")
+    # add_pred_info(DST_DIR, PRED_P)

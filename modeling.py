@@ -14,10 +14,11 @@ from cpp_bag.model import BagPooling
 from cpp_bag.model import encoder_training
 from cpp_bag.plot import measure_slide_vectors
 
+BASE_DIR = "experiments0"
 
 class Planner:
     def __init__(self) -> None:
-        self.base = Path("experiments1")
+        self.base = Path(BASE_DIR)
         self.with_mk = True
         print(f"torch.cuda.is_available: {torch.cuda.is_available()}")
         all_cells = data.load_cells()

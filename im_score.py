@@ -22,7 +22,6 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import NearestCentroid
 from sklearn.preprocessing import minmax_scale
-from sklearn.preprocessing import scale
 from torch.utils.data import Dataset
 
 from cpp_bag import data
@@ -34,11 +33,9 @@ from cpp_bag.io_utils import json_load
 from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label
 from cpp_bag.model import BagPooling
-from cpp_bag.performance import create_knn
 from cpp_bag.plot import heat_map
-from runner import WITH_MK
 
-
+WITH_MK = True
 CellType = Literal[
     "Neutrophil",
     "Metamyelocyte",
@@ -111,6 +108,7 @@ class ImScorer:
             cell_threshold=300,
             with_MK=WITH_MK,
             all_cells=all_cells,
+            enable_mask=True,
         )
         self.masks = (
             masks
@@ -289,7 +287,7 @@ def _load_mask_info(p: Path, slide_names, bag_size=256):
         if info["total_count"] == 0 or info["mask_count"] == 0:
             return 0
         if info["total_count"] == 1: # Megakaryocyte
-            return 1
+            return 2
         ratio = info["mask_count"] / info["total_count"]
         # data.py line 182
         size = ceil(ratio * bag_size)
@@ -308,7 +306,7 @@ def _load_mask_info(p: Path, slide_names, bag_size=256):
 
 def make_mask_embed(
     model_path: str,
-    split_json_p="data/0/split0.json",
+    split_json_p: str,
     mask_dir=Path("mask"),
     subtype_k=0,
 ):
@@ -330,10 +328,10 @@ def make_mask_embed(
                 print(dst)
 
 
-def diff_mask_embed(ret_dir_p: str, dst=Path("mask/mask_diff")):
+def diff_mask_embed(ret_dir_p: str, train_pkl_p, val_pkl_p,  dst=Path("mask/mask_diff")):
     ret_dir = Path(ret_dir_p)
     ret_pkls = ret_dir.glob("*.pkl")
-    im_analyst = ImAnalyst("data/0/train0_pool.pkl", "data/0/val0_pool.pkl")
+    im_analyst = ImAnalyst(train_pkl_p, val_pkl_p)
     dst.mkdir(exist_ok=True, parents=True)
     for ret_pkl in ret_pkls:
         # print(ret_pkl)
@@ -380,7 +378,7 @@ def mask_effect_heat_map(effect_csv_p, dst, use_scale=True):
         y=rank,
         annotation_text=np.transpose(annotation_text),
     )
-    fig.write_image(dst, scale=2)
+    fig.write_image(dst)
 
 
 ACCR_LABLE = {
@@ -420,12 +418,13 @@ def mask_effect_cell_ordered(effect_csv_p, dst, use_scale=True):
 
 if __name__ == "__main__":
     # make_mask_embed(
-    #     "data/0/pool-1650909062154.pth",
+    #     "experiments0/trial2/pool-1659028139226.pth",
+    #     "experiments0/trial2/split2.json",
     #     mask_dir=Path("mask_n0"),
     #     subtype_k=0,
     # )
-    diff_mask_embed("mask_n0/result", dst=Path("mask_n0/mask_diff"))
-    # mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.png")
+    diff_mask_embed("mask_n0/result", "experiments0/trial2/train2_pool.pkl", "experiments0/trial2/val2_pool.pkl", dst=Path("mask_n0/mask_diff"))
+    mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.pdf")
     mask_effect_cell_ordered(
         "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.pdf",
     )
