@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,6 @@ import umap
 from plotly.validators.scatter.marker import SymbolValidator
 from sklearn.manifold import TSNE
 
-from cpp_bag.io_utils import json_dump
 from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label
 from cpp_bag.performance import create_knn
@@ -228,7 +227,12 @@ ACCR_LABLE = {
 }
 
 
-def plot_embedding(df):
+class AnnoMark(NamedTuple):
+    slide_name: str
+    mark_name: str
+
+
+def plot_embedding(df: pd.DataFrame, marks: Optional[list[AnnoMark]] = None):
     df["label"] = df["label"].map(ACCR_LABLE)
     fig = px.scatter(
         df,
@@ -247,6 +251,19 @@ def plot_embedding(df):
             "correct",
         ],
     )
+    if marks != None:
+        df.set_index("index", inplace=True)
+        for mark in marks:
+            case = df.loc[mark.slide_name]
+            x = case["D1"]
+            y = case["D2"]
+            fig.add_annotation(
+                x=x,
+                y=y,
+                text=mark.mark_name,
+                showarrow=True,
+                arrowhead=1,
+            )
     fig.update_xaxes(showticklabels=False)
     fig.update_yaxes(showticklabels=False)
     fig.update_layout(

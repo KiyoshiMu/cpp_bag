@@ -1,11 +1,16 @@
 from pathlib import Path
 import pandas as pd
-from cpp_bag.plot import plot_embedding 
+from cpp_bag.plot import AnnoMark, plot_embedding 
 
 
 def draw_embedding(df_p, suffix="", write_pdf=False, write_html=False):
     plot_df = pd.read_json(df_p, orient="records")
-    fig = plot_embedding(plot_df)
+    fig = plot_embedding(plot_df, marks=[
+        AnnoMark("19_0381_AS", "A"),
+        AnnoMark("19_0398_AS", "B"),
+        AnnoMark("18_0209_AS", "C"),
+        AnnoMark("19_0417_AS", "D"),
+    ])
     parent_dir = Path(df_p).parent.parent
     if write_html:
         fig.write_html((parent_dir / f"embedding{suffix}.html").absolute())
