@@ -44,11 +44,13 @@ def heat_map(z, x, y, annotation_text):
     return fig
 
 
-def arr_project(arrays, method="umap"):
+def arr_project(arrays, method="umap", return_reducer=False):
     if method == "umap":
-        reducer = umap.UMAP(n_components=2)
+        reducer = umap.UMAP(n_components=2, random_state=0)
     else:
-        reducer = TSNE(n_components=2)
+        reducer = TSNE(n_components=2, random_state=0)
+    if return_reducer:
+        return reducer.fit_transform(arrays), reducer
     return reducer.fit_transform(arrays)
 
 
@@ -169,6 +171,7 @@ def measure_slide_vectors(
     trial="",
     dummy_baseline=True,
     dst=Path("."),
+    out_distribute=None,
 ):
     train = pkl_load(train_pkl_p)
     refer_embed = train["embed_pool"]
@@ -177,21 +180,32 @@ def measure_slide_vectors(
     classes_ = knn.classes_
     val = pkl_load(val_pkl_p)
     val_embed = val["embed_pool"]
-    projection = arr_project(val_embed)
+    val_full_label = val["labels"]
+    val_labels = [simplify_label(l) for l in val_full_label]
+    val_names = val["index"]
+    sizes = load_size()
+
+    if out_distribute is not None:
+        val_full_label = np.concatenate([val_full_label, ["OUT"]])
+        val_labels = np.concatenate([val_labels, ["OUT"]])
+        val_names = np.concatenate([val_names, ["OUT"]])
+        projection, reducer = arr_project(val_embed, return_reducer=True)
+        projection = np.concatenate([projection, reducer.transform([out_distribute])])
+        val_embed = np.concatenate([val_embed, [out_distribute]])
+    else:
+        projection = arr_project(val_embed)
     pred_probs: np.ndarray = knn.predict_proba(val_embed)
-    val_labels = [simplify_label(l) for l in val["labels"]]
     _df = proba_to_dfDict(pred_probs, classes_, val_labels)
     preds = knn.predict(val_embed)
-    sizes = load_size()
-    val_names = val["index"]
+    
     _df.update(
         {
             "D1": projection[:, 0],
             "D2": projection[:, 1],
             "label": val_labels,
-            "full_label": val["labels"],
+            "full_label": val_full_label,
             "index": val_names,
-            "cell_count": [sizes[n] for n in val_names],
+            "cell_count": [sizes.get(n , 0) for n in val_names],
             "pred": preds,
             "correct": [
                 val_labels == preds for (val_labels, preds) in zip(val_labels, preds)
@@ -233,7 +247,7 @@ class AnnoMark(NamedTuple):
 
 
 def plot_embedding(df: pd.DataFrame, marks: Optional[list[AnnoMark]] = None):
-    df["label"] = df["label"].map(ACCR_LABLE)
+    df["label"] = df["label"].map(lambda x: ACCR_LABLE.get(x, "OUT"))
     fig = px.scatter(
         df,
         x="D1",
