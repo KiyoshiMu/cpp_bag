@@ -117,7 +117,10 @@ class ImScorer:
         )
 
     def make_masks(
-        self, dst: Path, sample_size=256, use_cache=True,
+        self,
+        dst: Path,
+        sample_size=256,
+        use_cache=True,
     ):
         for cell_type, kmean_mask in self.masks.items():
             print(f"{cell_type}")
@@ -157,7 +160,8 @@ class ImScorer:
             mask_flag = np.zeros(len(slide_cells), dtype=bool)
             if len(target_cells) > 0:
                 pred_subtypes = self._predict_mask(
-                    self.masks[cell_type], [cell[1] for cell in target_cells],
+                    self.masks[cell_type],
+                    [cell[1] for cell in target_cells],
                 )
                 mask_idx = [
                     idx
@@ -192,7 +196,10 @@ class ImScorer:
             # train_indices = cache["train"]
         val_set = data.Subset(self.dataset, val_indices)
         val_pkl_dst, _ = ds_project(
-            val_set, self.embed_func, mask_dst, name_mark=f"val_mask_{cell_type}",
+            val_set,
+            self.embed_func,
+            mask_dst,
+            name_mark=f"val_mask_{cell_type}",
         )
         return val_pkl_dst
 
@@ -260,7 +267,7 @@ class ImAnalyst:
             cell_type = _get_cell_type(csv_p)
             if cell_type not in mask_cell_count:
                 continue
-            
+
             effects = diff_df.iloc[:, :6].sum(axis=0) / mask_cell_count[cell_type]
             # print(effects)
             mask_name = _get_cell_type(csv_p)
@@ -286,14 +293,14 @@ def _load_mask_info(p: Path, slide_names, bag_size=256):
     def _get_sample_size(info):
         if info["total_count"] == 0 or info["mask_count"] == 0:
             return 0
-        if info["total_count"] == 1: # Megakaryocyte
+        if info["total_count"] == 1:  # Megakaryocyte
             return 2
         ratio = info["mask_count"] / info["total_count"]
         # data.py line 182
         size = ceil(ratio * bag_size)
         if size < 1:
             return 1
-        
+
         assert size < bag_size, f"{p}|  {size} < {bag_size}"
         return size
 
@@ -328,7 +335,7 @@ def make_mask_embed(
                 print(dst)
 
 
-def diff_mask_embed(ret_dir_p: str, train_pkl_p, val_pkl_p,  dst=Path("mask/mask_diff")):
+def diff_mask_embed(ret_dir_p: str, train_pkl_p, val_pkl_p, dst=Path("mask/mask_diff")):
     ret_dir = Path(ret_dir_p)
     ret_pkls = ret_dir.glob("*.pkl")
     im_analyst = ImAnalyst(train_pkl_p, val_pkl_p)
@@ -423,8 +430,11 @@ if __name__ == "__main__":
     #     mask_dir=Path("mask_n0"),
     #     subtype_k=0,
     # )
-    diff_mask_embed("mask_n0/result", "experiments0/trial2/train2_pool.pkl", "experiments0/trial2/val2_pool.pkl", dst=Path("mask_n0/mask_diff"))
-    mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.pdf")
-    mask_effect_cell_ordered(
-        "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.pdf",
+    # diff_mask_embed("mask_n0/result", "experiments0/trial2/train2_pool.pkl", "experiments0/trial2/val2_pool.pkl", dst=Path("mask_n0/mask_diff"))
+    # mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.pdf")
+    # mask_effect_cell_ordered(
+    #     "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.pdf",
+    # )
+    pd.read_csv("mask_n0/mask_diff/mask_effect.csv").to_latex(
+        "mask_n0/mask_effect.tex", index=False, float_format="%.3e"
     )

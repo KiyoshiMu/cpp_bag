@@ -18,7 +18,7 @@ LABEL_N = 6
 
 
 def merge_metrics(
-    prefix="", random_csv=None, write_pdf=False, avg_csv=None, dst_dir=Path(".")
+    prefix="", random_csv=None, write_pdf=False, avg_csv=None, dst_dir=Path("."), hct_csv=None,
 ):
     metrics = ["Precision", "Recall", "F1 Score"]
     dfs = []
@@ -56,6 +56,7 @@ def merge_metrics(
     main_metrics = "F1 Score"
     include_random = random_csv is not None
     include_avg = avg_csv is not None
+    include_hct = hct_csv is not None
     if include_random:
         random_record_df = pd.read_csv(random_csv, index_col=0)
         df_metrics["Dummy_mean"] = random_record_df[f"{main_metrics}_mean"]
@@ -64,11 +65,17 @@ def merge_metrics(
         avg_record_df = pd.read_csv(avg_csv, index_col=0)
         df_metrics["Avg_mean"] = avg_record_df[f"{main_metrics}_mean"]
         df_metrics["Avg_std"] = avg_record_df[f"{main_metrics}_std"]
+    if include_hct:
+        hct_record_df = pd.read_csv(hct_csv, index_col=0)
+        df_metrics["HCT_mean"] = hct_record_df[f"{main_metrics}_mean"]
+        df_metrics["HCT_std"] = hct_record_df[f"{main_metrics}_std"]
     fig_metrics = plot_tag_perf_with_std(
         df_metrics,
         main_metrics,
         include_random=include_random,
         include_avg=include_avg,
+        include_hct=include_hct,
+        show_recall_precision=False,
     )
     fig_metrics.write_image(str(dst_dir / f"metrics{prefix}.jpg"), scale=2)
     if write_pdf:
@@ -76,14 +83,33 @@ def merge_metrics(
     return df_metrics_dst
 
 
+def ret_to_latex(csvs, methods):
+    dfs = []
+    for csv, method in zip(csvs ,methods) :
+        df = pd.read_csv(csv)
+        f1s = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["F1 Score_mean"], df["F1 Score_std"])]
+        precisions = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["Precision_mean"], df["Precision_std"])]
+        recalls = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["Recall_mean"], df["Recall_std"])]
+        methods = [method] * len(f1s)
+        labels = df["Label"]
+        dfs.append(pd.DataFrame({"Label": labels, "F1 Score": f1s, "Precision": precisions, "Recall": recalls, "Method": methods, }))
+    df = pd.concat([dfs[2], dfs[0], dfs[1]])
+    
+    df.to_latex("metrics_all.tex", index=False)
+
 if __name__ == "__main__":
     dst_dir = BASE
     random_csv = merge_metrics(prefix="dummy", dst_dir=dst_dir)
     avg_csv = merge_metrics(prefix="avg", dst_dir=dst_dir)
+    hct_csv = merge_metrics(prefix="hct", dst_dir=dst_dir)
     merge_metrics(
         prefix="pool",
         random_csv=random_csv,
         write_pdf=True,
         avg_csv=avg_csv,
         dst_dir=dst_dir,
+        hct_csv=hct_csv,
     )
+    # ret_to_latex(
+    #    sorted(dst_dir.glob("metrics*_T.csv")) , ["Avg Pooling", "Empirical", "Full System"]
+    # )

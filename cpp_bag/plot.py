@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import NamedTuple, Optional
+from unicodedata import name
 
 import numpy as np
 import pandas as pd
@@ -197,7 +198,7 @@ def measure_slide_vectors(
     pred_probs: np.ndarray = knn.predict_proba(val_embed)
     _df = proba_to_dfDict(pred_probs, classes_, val_labels)
     preds = knn.predict(val_embed)
-    
+
     _df.update(
         {
             "D1": projection[:, 0],
@@ -205,7 +206,7 @@ def measure_slide_vectors(
             "label": val_labels,
             "full_label": val_full_label,
             "index": val_names,
-            "cell_count": [sizes.get(n , 0) for n in val_names],
+            "cell_count": [sizes.get(n, 0) for n in val_names],
             "pred": preds,
             "correct": [
                 val_labels == preds for (val_labels, preds) in zip(val_labels, preds)
@@ -293,7 +294,12 @@ def plot_embedding(df: pd.DataFrame, marks: Optional[list[AnnoMark]] = None):
 
 
 def plot_tag_perf_with_std(
-    performance, main_metrics="F1 Score", include_random=False, include_avg=False
+    performance,
+    main_metrics="F1 Score",
+    include_random=False,
+    include_avg=False,
+    include_hct=False,
+    show_recall_precision=True,
 ):
     #  perf_average, perf_err
 
@@ -302,8 +308,8 @@ def plot_tag_perf_with_std(
         inplace=True,
     )
     fig = go.Figure()
-    x = performance.index.to_list()
-    marker_symbols = ["square", "x"]
+    x = [ACCR_LABLE.get(x, "OUT") for x in performance.index]
+    marker_symbols = ["circle", "square", "x", "diamond", "cross", "triangle-up"]
     # fig.add_shape(
     #     type="line",
     #     x0=0.01,
@@ -313,42 +319,26 @@ def plot_tag_perf_with_std(
     #     xref="paper",
     #     line=dict(color="lightgray", width=2, dash="dash"),
     # )
-    for idx, measure in enumerate(["Precision", "Recall"]):
-        fig.add_trace(
-            go.Scatter(
-                x=x,
-                y=performance[f"{measure}_mean"],
-                error_y=dict(
-                    color="lightgray",
-                    type="data",
-                    array=performance[f"{measure}_std"],
-                    visible=False,
+    if show_recall_precision:
+        for idx, measure in enumerate(["Precision", "Recall"]):
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=performance[f"{measure}_mean"],
+                    error_y=dict(
+                        color="lightgray",
+                        type="data",
+                        array=performance[f"{measure}_std"],
+                        visible=False,
+                    ),
+                    marker_color="lightgray",
+                    marker_symbol=marker_symbols[idx],
+                    marker_size=8,
+                    mode="markers",
+                    name=measure,
                 ),
-                marker_color="lightgray",
-                marker_symbol=marker_symbols[idx],
-                marker_size=10,
-                mode="markers",
-                name=measure,
-            ),
-        )
+            )
 
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=performance[f"{main_metrics}_mean"],
-            error_y=dict(
-                color="lightgray",
-                type="data",
-                array=performance[f"{main_metrics}_std"],
-                visible=True,
-            ),
-            marker_color="blue",
-            mode="markers+text",
-            text=[f"{v:.02f}" for v in performance[f"{main_metrics}_mean"]],
-            marker_size=10,
-            name=main_metrics,
-        ),
-    )
     if include_random:
         random_title = "Dummy"
         fig.add_trace(
@@ -364,9 +354,30 @@ def plot_tag_perf_with_std(
                 marker_color="pink",
                 mode="markers+text",
                 text=[f"{v:.02f}" for v in performance[f"{random_title}_mean"]],
-                marker_size=10,
-                name=f"Empirical {main_metrics}",
+                marker_size=8,
+                marker_symbol=marker_symbols[0],
+                name="Empirical inference",
             ),
+        )
+    if include_hct:
+        hct_title = "HCT"
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=performance[f"{hct_title}_mean"],
+                error_y=dict(
+                    color="lightgray",
+                    type="data",
+                    array=performance[f"{hct_title}_std"],
+                    visible=False,
+                ),
+                marker_color="lightgreen",
+                mode="markers+text",
+                text=[f"{v:.02f}" for v in performance[f"{hct_title}_mean"]],
+                marker_size=8,
+                marker_symbol=marker_symbols[1],
+                name="HCT",
+            )
         )
     if include_avg:
         avg_title = "Avg"
@@ -383,13 +394,32 @@ def plot_tag_perf_with_std(
                 marker_color="orange",
                 mode="markers+text",
                 text=[f"{v:.02f}" for v in performance[f"{avg_title}_mean"]],
-                marker_size=10,
-                name=f"{avg_title} {main_metrics}",
+                marker_size=8,
+                marker_symbol=marker_symbols[2],
+                name="AvgPooling on Cell Bags",
             )
         ),
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=performance[f"{main_metrics}_mean"],
+            error_y=dict(
+                color="lightgray",
+                type="data",
+                array=performance[f"{main_metrics}_std"],
+                visible=True,
+            ),
+            marker_color="blue",
+            mode="markers+text",
+            text=[f"{v:.02f}" for v in performance[f"{main_metrics}_mean"]],
+            marker_size=8,
+            marker_symbol=marker_symbols[3],
+            # name=f"Full system {main_metrics}",
+            name="Hopfield on Cell Bags",
+        ),
+    )
     fig.update_traces(textposition="middle right")
 
-    x_loc = len(performance) - 2
     fig.update_layout(
         template=TEMPLATE,
         font_family="Arial",
@@ -399,17 +429,6 @@ def plot_tag_perf_with_std(
         yaxis_title="Metrics",
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        # annotations=[
-        #     dict(
-        #         x=x_loc,
-        #         y=perf_average,
-        #         xref="x",
-        #         yref="y",
-        #         text=f"Micro {y_title}: {perf_average:.03f}±{perf_err:.03f}",
-        #         showarrow=False,
-        #         font=dict(size=15),
-        #     ),
-        # ],
     )
     fig.add_annotation(
         x=1,
