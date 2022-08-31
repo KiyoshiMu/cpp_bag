@@ -292,6 +292,15 @@ def plot_embedding(df: pd.DataFrame, marks: Optional[list[AnnoMark]] = None):
     )
     return fig
 
+def name_mapping(name):
+    name = name.lower()
+    if "dummy" in name:
+        return "Empirical Inference"
+    if "avg" in name:
+        return "AvgPooling on Cell Bags"
+    if "hct" in name:
+        return "HCT"
+    return "Hopfield on Cell Bags"
 
 def plot_tag_perf_with_std(
     performance,
@@ -300,6 +309,7 @@ def plot_tag_perf_with_std(
     include_avg=False,
     include_hct=False,
     show_recall_precision=True,
+    name_mapping=name_mapping,
 ):
     #  perf_average, perf_err
 
@@ -356,7 +366,7 @@ def plot_tag_perf_with_std(
                 text=[f"{v:.02f}" for v in performance[f"{random_title}_mean"]],
                 marker_size=8,
                 marker_symbol=marker_symbols[0],
-                name="Empirical inference",
+                name=name_mapping(random_title),
             ),
         )
     if include_hct:
@@ -376,7 +386,7 @@ def plot_tag_perf_with_std(
                 text=[f"{v:.02f}" for v in performance[f"{hct_title}_mean"]],
                 marker_size=8,
                 marker_symbol=marker_symbols[1],
-                name="HCT",
+                name=name_mapping(hct_title),
             )
         )
     if include_avg:
@@ -396,7 +406,7 @@ def plot_tag_perf_with_std(
                 text=[f"{v:.02f}" for v in performance[f"{avg_title}_mean"]],
                 marker_size=8,
                 marker_symbol=marker_symbols[2],
-                name="AvgPooling on Cell Bags",
+                name=name_mapping(avg_title),
             )
         ),
     fig.add_trace(
@@ -415,7 +425,7 @@ def plot_tag_perf_with_std(
             marker_size=8,
             marker_symbol=marker_symbols[3],
             # name=f"Full system {main_metrics}",
-            name="Hopfield on Cell Bags",
+            name=name_mapping(""),
         ),
     )
     fig.update_traces(textposition="middle right")

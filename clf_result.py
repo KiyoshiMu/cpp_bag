@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from cpp_bag.plot import plot_tag_perf_with_std
+from cpp_bag.plot import name_mapping, plot_tag_perf_with_std
 
 
 METRICS_RENAME_MAP = {
@@ -93,7 +93,7 @@ def ret_to_latex(csvs, methods):
         methods = [method] * len(f1s)
         labels = df["Label"]
         dfs.append(pd.DataFrame({"Label": labels, "F1 Score": f1s, "Precision": precisions, "Recall": recalls, "Method": methods, }))
-    df = pd.concat([dfs[2], dfs[0], dfs[1]])
+    df = pd.concat(dfs)
     
     df.to_latex("metrics_all.tex", index=False)
 
@@ -110,6 +110,7 @@ if __name__ == "__main__":
         dst_dir=dst_dir,
         hct_csv=hct_csv,
     )
-    # ret_to_latex(
-    #    sorted(dst_dir.glob("metrics*_T.csv")) , ["Avg Pooling", "Empirical", "Full System"]
-    # )
+    csvs = sorted(dst_dir.glob("metrics*_T.csv"))
+    ret_to_latex(
+       csvs , [name_mapping(n.name) for n in csvs]
+    )
