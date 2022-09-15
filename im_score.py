@@ -432,9 +432,9 @@ if __name__ == "__main__":
     # )
     # diff_mask_embed("mask_n0/result", "experiments0/trial2/train2_pool.pkl", "experiments0/trial2/val2_pool.pkl", dst=Path("mask_n0/mask_diff"))
     # mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.pdf")
-    # mask_effect_cell_ordered(
-    #     "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.pdf",
-    # )
-    pd.read_csv("mask_n0/mask_diff/mask_effect.csv").to_latex(
-        "mask_n0/mask_effect.tex", index=False, float_format="%.3e"
+    mask_effect_cell_ordered(
+        "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.pdf",
     )
+    # pd.read_csv("mask_n0/mask_diff/mask_effect.csv").rename(ACCR_LABLE, axis=1).to_latex(
+    #     "mask_n0/mask_effect.tex", index=False, float_format="%.3e"
+    # )

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from cpp_bag.plot import name_mapping, plot_tag_perf_with_std
+from cpp_bag.plot import ACCR_LABLE, name_mapping, plot_tag_perf_with_std
 
 
 METRICS_RENAME_MAP = {
@@ -91,7 +91,7 @@ def ret_to_latex(csvs, methods):
         precisions = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["Precision_mean"], df["Precision_std"])]
         recalls = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["Recall_mean"], df["Recall_std"])]
         methods = [method] * len(f1s)
-        labels = df["Label"]
+        labels = [ACCR_LABLE[l] for l in df["Label"]]
         dfs.append(pd.DataFrame({"Label": labels, "F1 Score": f1s, "Precision": precisions, "Recall": recalls, "Method": methods, }))
     df = pd.concat(dfs)
     

@@ -12,6 +12,8 @@ import plotly.graph_objects as go
 import umap
 from plotly.validators.scatter.marker import SymbolValidator
 from sklearn.manifold import TSNE
+import plotly.io as pio   
+pio.kaleido.scope.mathjax = None
 
 from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label

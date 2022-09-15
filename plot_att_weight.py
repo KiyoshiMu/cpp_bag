@@ -14,12 +14,9 @@ from sklearn.preprocessing import minmax_scale
 import umap
 import pandas as pd
 import plotly.express as px
-from hflayers import  HopfieldPooling
 import plotly.graph_objects as go
 from PIL import Image, ImageOps, ImageDraw, ImageFont
-import re
-import plotly.colors
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 TEMPLATE = "plotly_white"
 FONT = "Arial"
@@ -65,66 +62,6 @@ def sort_locs_groups_by_attW_sum(locs:List[int], types: List[str], att_weights: 
         locs.sort(key=lambda loc: att_weights[loc], reverse=True)
     sorted_type_count_pair = sorted(type_count.items(), key=lambda x: sum(att_weights[loc] for loc in x[1]), reverse=True)
     return sorted_type_count_pair
-
-def plot_cell_att_rank_old(sample_cells,rank_map, attn_output_weights,img_loader, bin_strs, marker):
-    rank_font_size = 24
-    att_font_size = 18
-    rank_font = ImageFont.truetype("arial.ttf", rank_font_size)
-    att_font = ImageFont.truetype("arial.ttf", att_font_size)
-    legend_font = ImageFont.truetype("arial.ttf", 18)
-    cell_w = 96
-    padding = 20
-    left_text_w = 135
-    text_padding = 4
-    legend_dot_size = 20
-    legend_gap = 36
-    legend_right_w = 250
-    cell_size = cell_w + padding
-    # canvas_w = cell_size * max(len(locs) for locs in rank_map.values()) + left_text_w
-    # canvas_h = cell_size * 10 + bottom_legend_h
-    canvas_w = cell_size * max(len(locs) for locs in rank_map.values()) + left_text_w + legend_right_w
-    canvas_h = cell_size * 10
-    canvas = Image.new("RGB", (canvas_w, canvas_h), color=(255, 255, 255))
-    slide_name = sample_cells[0].name.split(".")[0]
-    for row_idx, rank in enumerate( range(10, 0, -1)):
-        locs = rank_map[rank]
-        cell_types = [sample_cells[loc].label for loc in locs]
-        # locs.sort(key=lambda x:attn_output_weights[x], reverse=True)
-        locs = sort_locs_by_type_attW_sum(locs, cell_types, attn_output_weights)
-        for col_idx, loc in enumerate(locs):
-            cell = sample_cells[loc]
-            cell_name = cell.name
-            color = COLOR_MAP[cell.label]
-            cell_img =img_loader( f"{slide_name}/{cell_name}.jpg")
-            cell_img = ImageOps.fit(cell_img, (cell_w, cell_w), method=Image.ANTIALIAS)
-            cell_img = ImageOps.expand(cell_img,border=8,fill=color)
-            canvas.paste(cell_img, (col_idx * cell_size + left_text_w,  row_idx * cell_size, ))
-
-    for row_idx, rank in enumerate( range(1, 11, 1)):
-        d = ImageDraw.Draw(canvas)
-        d.text((text_padding, row_idx * cell_size), str(rank), fill=(0, 0, 0), font=rank_font)
-        d.text((text_padding, row_idx * cell_size + rank_font_size + 4), bin_strs[row_idx], fill=(0, 0, 0), font=att_font)
-    # add legend dots to the bottom
-    # start = text_padding
-    # for idx, label in enumerate(CELL_TYPES):
-    #     color = COLOR_MAP[label]
-    #     d = ImageDraw.Draw(canvas)
-    #     dot_place = (start, canvas_h - bottom_legend_h, start + legend_dot_size, canvas_h - bottom_legend_h + legend_dot_size)
-    #     d.rectangle(dot_place, fill=color)        
-    #     d.text((start, canvas_h - bottom_legend_h + legend_dot_size + text_padding), label, fill=(0, 0, 0), font=legend_font)
-    #     start = start + legend_dot_size + legend_gap
-    start_w = canvas_w - legend_right_w + text_padding * 4
-    start_h = text_padding
-    for idx, label in enumerate(CELL_TYPES):
-        color = COLOR_MAP[label]
-        d = ImageDraw.Draw(canvas)
-        dot_place = (start_w, start_h, start_w + legend_dot_size, start_h + legend_dot_size)
-        d.rectangle(dot_place, fill=color)        
-        d.text((start_w + legend_dot_size + text_padding, start_h), label, fill=(0, 0, 0), font=legend_font)
-        start_h += legend_gap
-    
-    
-    canvas.save(DST_DIR / f"{slide_name}-{marker}.png")
     
 def plot_cell_att_rank(sample_cells:List[data.CellInstance], attn_output_weights,img_loader, marker):
     rank_font_size = 24
@@ -349,10 +286,6 @@ def main():
     for index in val_indices:
         feature, label, sample_cells = dataset.example_samples(index)
         attn_weight = att_plotter.make_att_weight(sample_cells, feature)
-        # _, bins = pd.qcut(attn_weight, 10, retbins=True)
-        # bin_strs = bin_str(bins)
-        # rank_map = get_rank_map(attn_weight, bins)
-        # plot_cell_att_rank_old(sample_cells, rank_map, attn_weight, img_loader, bin_strs, marker=label)
 
         plot_cell_att_rank(sample_cells, attn_weight, img_loader, marker=label)
         # df = att_plotter.make_att_df(sample_cells, feature)

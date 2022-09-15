@@ -53,7 +53,8 @@ Python Dependencies:
 
 ### Scripts
 
-1. modeling process: [modeling.py](modeling.py)
+1. Modeling process: [modeling.py](modeling.py)
+1. Refined HCT alone benchmark: [hct_clf.py](hct_clf.py)
 1. Metrics Figure come from [clf_result.py](clf_result.py)
 1. Attention weight plot [plot_att_weight.py](plot_att_weight.py)
 1. Embedding Figure [pick_embedding.py](pick_embedding.py)

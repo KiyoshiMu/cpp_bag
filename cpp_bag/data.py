@@ -9,7 +9,7 @@ from pathlib import Path
 from random import sample
 from typing import Optional
 from typing import NamedTuple
-from typing import Sequence
+from typing import Sequence 
 
 import numpy as np
 import torch
@@ -129,11 +129,11 @@ class CustomImageDataset(Dataset):
         _labels = np.array(
             [self._load_doc(label_dir / f"{name}.json") for name in _slide_names],
         )
-        _simple_labels = np.array([simplify_label(l) for l in _labels])
+        self.simple_labels = np.array([simplify_label(l) for l in _labels])
         self.slide_names = _slide_names
         self.labels = _labels
         self.le = LabelEncoder()
-        self.targets = self.le.fit_transform(_simple_labels)
+        self.targets = self.le.fit_transform(self.simple_labels)
         self.slide_portion: list[dict[str, int]] = [
             self._mk_portion([cell.label for cell in cells], bag_size)
             for _, cells in _p_cells

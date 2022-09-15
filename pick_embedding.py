@@ -26,21 +26,21 @@ def draw_embedding(df_p, suffix="", write_pdf=False, write_html=False):
 
 
 if __name__ == "__main__":
-    MODEL_P = "experiments0/trial2/pool-1659028139226.pth"
-    model = BagPooling.from_checkpoint(MODEL_P)
-    model.eval()
-    empty_arr = np.expand_dims(np.concatenate([np.expand_dims(np.load("data/empty_cell_feat.npy"), 0) for _ in range(257)]), 0) 
-    print(empty_arr.shape)
-    with torch.no_grad():
-        out_distribute = model(torch.as_tensor(empty_arr)).numpy()[0]
+    # MODEL_P = "experiments0/trial2/pool-1659028139226.pth"
+    # model = BagPooling.from_checkpoint(MODEL_P)
+    # model.eval()
+    # empty_arr = np.expand_dims(np.concatenate([np.expand_dims(np.load("data/empty_cell_feat.npy"), 0) for _ in range(257)]), 0) 
+    # print(empty_arr.shape)
+    # with torch.no_grad():
+    #     out_distribute = model(torch.as_tensor(empty_arr)).numpy()[0]
 
-    measure_slide_vectors(
-        "experiments0/trial2/train2_pool.pkl",
-        "experiments0/trial2/val2_pool.pkl",
-        dummy_baseline=False,
-        out_distribute=out_distribute,
-        dst=Path("OUT"),
-    )
+    # measure_slide_vectors(
+    #     "experiments0/trial2/train2_pool.pkl",
+    #     "experiments0/trial2/val2_pool.pkl",
+    #     dummy_baseline=False,
+    #     out_distribute=out_distribute,
+    #     dst=Path("OUT"),
+    # )
 
-    # draw_embedding("experiments0/trial2/pool2.json", suffix="_pool", write_pdf=True)
-    # draw_embedding("experiments0/trial2/avg2.json", suffix="_avg", write_pdf=True)
+    draw_embedding("experiments0/trial2/pool2.json", suffix="_pool", write_pdf=True)
+    draw_embedding("experiments0/trial2/avg2.json", suffix="_avg", write_pdf=True)
