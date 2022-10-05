@@ -12,9 +12,11 @@ import plotly.graph_objects as go
 import umap
 from plotly.validators.scatter.marker import SymbolValidator
 from sklearn.manifold import TSNE
-import plotly.io as pio   
+import plotly.io as pio
+
 pio.kaleido.scope.mathjax = None
 
+from cpp_bag.label_map import ACCR_LABLE   
 from cpp_bag.io_utils import pkl_load
 from cpp_bag.io_utils import simplify_label
 from cpp_bag.performance import create_knn
@@ -234,14 +236,7 @@ def measure_slide_vectors(
     return fig
 
 
-ACCR_LABLE = {
-    "normal": "NORMAL",
-    "acute leukemia": "ACL",
-    "lymphoproliferative disorder": "LPD",
-    "myelodysplastic syndrome": "MDS",
-    "plasma": "PCN",
-    "other": "OTHER",
-}
+
 
 
 class AnnoMark(NamedTuple):
