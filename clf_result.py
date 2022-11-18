@@ -12,9 +12,9 @@ METRICS_RENAME_MAP = {
     "fscore": "F1 Score",
     "Unnamed: 0": "Label",
 }
-BASE = Path("experiments0")
+BASE = Path("experiments1")
 TRAIL_N = 5
-LABEL_N = 6
+LABEL_N = 5
 
 
 def merge_metrics(
@@ -83,7 +83,7 @@ def merge_metrics(
     return df_metrics_dst
 
 
-def ret_to_latex(csvs, methods):
+def ret_to_latex(csvs, methods, dst_dir=Path(".")):
     dfs = []
     for csv, method in zip(csvs ,methods) :
         df = pd.read_csv(csv)
@@ -95,7 +95,7 @@ def ret_to_latex(csvs, methods):
         dfs.append(pd.DataFrame({"Label": labels, "F1 Score": f1s, "Precision": precisions, "Recall": recalls, "Method": methods, }))
     df = pd.concat(dfs)
     
-    df.to_latex("metrics_all.tex", index=False)
+    df.to_latex(dst_dir/ "metrics_all.tex", index=False)
 
 if __name__ == "__main__":
     dst_dir = BASE
@@ -112,5 +112,5 @@ if __name__ == "__main__":
     )
     csvs = sorted(dst_dir.glob("metrics*_T.csv"))
     ret_to_latex(
-       csvs , [name_mapping(n.name) for n in csvs]
+       csvs , [name_mapping(n.name) for n in csvs], dst_dir=dst_dir
     )

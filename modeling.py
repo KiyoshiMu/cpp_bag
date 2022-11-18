@@ -14,7 +14,7 @@ from cpp_bag.model import BagPooling
 from cpp_bag.model import encoder_training
 from cpp_bag.plot import measure_slide_vectors
 
-BASE_DIR = "experiments0"
+BASE_DIR = "experiments1"
 
 class Planner:
     def __init__(self) -> None:

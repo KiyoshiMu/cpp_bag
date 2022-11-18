@@ -2,7 +2,7 @@ from cpp_bag import data
 
 import numpy as np
 
-from cpp_bag.io_utils import json_load
+from cpp_bag.io_utils import json_load, pkl_dump
 
 from cpp_bag.performance import create_knn
 from cpp_bag.performance import dump_metric
@@ -36,7 +36,7 @@ def main():
 
     x_vec = count_2_vec(slide_portion, Lineage)
 
-    BASE_DIR = "experiments0"
+    BASE_DIR = "experiments1"
     base = Path(BASE_DIR)
     n = 5
     mark = "hct"
@@ -52,6 +52,8 @@ def main():
         y_test = labels[test_index]
 
         knn = create_knn(x_train, y_train)
+        pkl_dump(dict(embed_pool=x_train, labels=y_train, index=train_index), dst_dir / f"train{trial}_{mark}.pkl") 
+        pkl_dump(dict(embed_pool=x_test, labels=y_test, index=test_index), dst_dir / f"val{trial}_{mark}.pkl")
         classes_ = knn.classes_
         preds = knn.predict(x_test)
         dump_metric(y_test, preds, classes_, dst_dir / f"{mark}{trial}_metric.csv")

@@ -5,13 +5,13 @@ import json
 from cpp_bag.label_map import ACCR_LABLE
 
 
-PRED_P = "experiments0/trial2/pool2.json"
+PRED_P = "experiments1/trial0/pool0.json"
 DOCS_DIR = Path("D:/DATA/Docs")
 DST_DIR = Path("D:/code/att/public/att_rank")
+SRC_DIR= Path("att_rank1")
 def main(dst_dir = DST_DIR):
-    src_dir= Path("att_rank0")
     dst_dir.mkdir(parents=True, exist_ok=True)
-    for file in src_dir.glob("*.png"):
+    for file in SRC_DIR.glob("*.png"):
         img = Image.open(file)
         new_name = f"{file.stem.split('-')[0]}.jpg"
         dst_file = dst_dir / new_name
@@ -44,5 +44,5 @@ def mk_vector_info(pred_p= PRED_P, dst_dir= DST_DIR, clean=False):
         json.dump(pred_data, f)
 
 if __name__ == "__main__":
-    # main()
+    main()
     mk_vector_info(clean=True)

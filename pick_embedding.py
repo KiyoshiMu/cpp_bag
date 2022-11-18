@@ -1,17 +1,14 @@
 from pathlib import Path
 import pandas as pd
-from cpp_bag.model import BagPooling
-from cpp_bag.plot import AnnoMark, measure_slide_vectors, plot_embedding
-import torch
-import numpy as np
+from cpp_bag.plot import AnnoMark, plot_embedding
 
 def draw_embedding(df_p, suffix="", write_pdf=False, write_html=False):
     plot_df = pd.read_json(df_p, orient="records")
     fig = plot_embedding(
         plot_df,
         marks=[
-            AnnoMark("19_0381_AS", "A"),
-            AnnoMark("19_0398_AS", "B"),
+            AnnoMark("19_0487_AS", "A"),
+            AnnoMark("18_0118_AS", "B"),
             AnnoMark("18_0209_AS", "C"),
             AnnoMark("19_0417_AS", "D"),
         ],
@@ -42,5 +39,5 @@ if __name__ == "__main__":
     #     dst=Path("OUT"),
     # )
 
-    draw_embedding("experiments0/trial2/pool2.json", suffix="_pool", write_pdf=True)
-    draw_embedding("experiments0/trial2/avg2.json", suffix="_avg", write_pdf=True)
+    draw_embedding("experiments1/trial0/pool0.json", suffix="_pool", write_pdf=True)
+    draw_embedding("experiments1/trial0/avg0.json", suffix="_avg", write_pdf=True)

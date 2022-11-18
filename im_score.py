@@ -252,7 +252,7 @@ class ImAnalyst:
         cell_types = [_get_cell_type(csv_p) for csv_p in diff_df_csvs]
         slide_names = pd.read_csv(diff_df_csvs[0], index_col=0).index.to_list()
         # !TODO ugly code
-        mask_cell_count = load_mask_cell_count(cell_types, slide_names)
+        mask_cell_count = load_mask_cell_count(cell_types, slide_names, dst=diff_dir.parent / "result")
         print(mask_cell_count)
         min_mask_cell_count = round(len(slide_names) * 0.5)
         print(min_mask_cell_count)
@@ -268,7 +268,7 @@ class ImAnalyst:
             if cell_type not in mask_cell_count:
                 continue
 
-            effects = diff_df.iloc[:, :6].sum(axis=0) / mask_cell_count[cell_type]
+            effects = diff_df.iloc[:, :5].sum(axis=0) / mask_cell_count[cell_type]
             # print(effects)
             mask_name = _get_cell_type(csv_p)
             mask_effect[mask_name] = list(effects)
@@ -361,7 +361,6 @@ def sample_cell_type(cells: list[CellInstance], cell_type: str, sample_size=256)
 
 def mask_effect_heat_map(effect_csv_p, dst, use_scale=True):
     mask_effect_df = pd.read_csv(effect_csv_p, index_col=0)
-    mask_effect_df.drop(["other"], axis=1, inplace=True)
     # values = mask_effect_df.values * -1
     # annotation text is the :.3f string of the values
     # annotation_text = values.round(3).astype(str)
@@ -399,7 +398,6 @@ ACCR_LABLE = {
 
 def mask_effect_cell_ordered(effect_csv_p, dst, use_scale=True):
     mask_effect_df = pd.read_csv(effect_csv_p, index_col=0)
-    mask_effect_df.drop(["other"], axis=1, inplace=True)
     labels = [ACCR_LABLE[l] for l in mask_effect_df.columns]
     mask_names: list[str] = [
         name.removeprefix("mask_") for name in mask_effect_df.index
@@ -425,16 +423,16 @@ def mask_effect_cell_ordered(effect_csv_p, dst, use_scale=True):
 
 if __name__ == "__main__":
     # make_mask_embed(
-    #     "experiments0/trial2/pool-1659028139226.pth",
-    #     "experiments0/trial2/split2.json",
-    #     mask_dir=Path("mask_n0"),
+    #     "experiments1/trial0/pool-1668171909036.pth",
+    #     "experiments1/trial0/split0.json",
+    #     mask_dir=Path("mask_n1"),
     #     subtype_k=0,
     # )
-    # diff_mask_embed("mask_n0/result", "experiments0/trial2/train2_pool.pkl", "experiments0/trial2/val2_pool.pkl", dst=Path("mask_n0/mask_diff"))
-    # mask_effect_heat_map("mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect.pdf")
+    # diff_mask_embed("mask_n1/result", "experiments1/trial0/train0_pool.pkl", "experiments1/trial0/val0_pool.pkl", dst=Path("mask_n1/mask_diff"))
+    # mask_effect_heat_map("mask_n1/mask_diff/mask_effect.csv", "mask_n1/mask_effect.pdf")
     mask_effect_cell_ordered(
-        "mask_n0/mask_diff/mask_effect.csv", "mask_n0/mask_effect_cell.pdf",
+        "mask_n1/mask_diff/mask_effect.csv", "mask_n1/mask_effect_cell.pdf",
     )
-    # pd.read_csv("mask_n0/mask_diff/mask_effect.csv").rename(ACCR_LABLE, axis=1).to_latex(
-    #     "mask_n0/mask_effect.tex", index=False, float_format="%.3e"
-    # )
+    pd.read_csv("mask_n1/mask_diff/mask_effect.csv").rename(ACCR_LABLE, axis=1).to_latex(
+        "mask_n1/mask_effect.tex", index=False, float_format="%.3e"
+    )

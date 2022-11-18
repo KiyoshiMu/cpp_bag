@@ -9,7 +9,7 @@ from pathlib import Path
 from random import sample
 from typing import Optional
 from typing import NamedTuple
-from typing import Sequence 
+from typing import Sequence
 
 import numpy as np
 import torch
@@ -17,7 +17,7 @@ from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import Dataset
 from tqdm.contrib.concurrent import thread_map
 
-from cpp_bag.io_utils import simplify_label
+from cpp_bag.io_utils import json_dump, simplify_label
 from cpp_bag.mk_data import load_mk_feat
 from cpp_bag.mk_data import MK_FEAT_DIR
 
@@ -112,19 +112,37 @@ class CustomImageDataset(Dataset):
         all_cells: Optional[list[list[CellInstance]]] = None,
         limit=None,
         enable_mask=False,
+        remove_other=True,
     ):
-        
+
         _slides = [p for p in feat_dir.glob("*.json")]
         if limit is not None:
             _slides = _slides[:limit]
         if all_cells is None:
             all_cells = thread_map(_load_cell_feats, _slides)
+        if all_cells is None:
+            raise ValueError("No cells")
         assert len(all_cells) == len(_slides)
-        _p_cells = [
-            (p, cells)
-            for p, cells in zip(_slides, all_cells)
-            if len(cells) > cell_threshold
-        ]
+        if remove_other:
+            slide_info = [
+                {"name": p.stem, "labels": self._load_doc(label_dir / f"{p.stem}.json")}
+                for p, cells in zip(_slides, all_cells)
+                if len(cells) > cell_threshold
+            ]
+            json_dump(slide_info, "data/used_slide_info.json")
+            _p_cells = [
+                (p, cells)
+                for p, cells in zip(_slides, all_cells)
+                if len(cells) > cell_threshold
+                and simplify_label(self._load_doc(label_dir / f"{p.stem}.json"))
+                != "other"
+            ]
+        else:
+            _p_cells = [
+                (p, cells)
+                for p, cells in zip(_slides, all_cells)
+                if len(cells) > cell_threshold
+            ]
         _slide_names = np.array([p.stem for p, _ in _p_cells])
         _labels = np.array(
             [self._load_doc(label_dir / f"{name}.json") for name in _slide_names],
@@ -213,7 +231,7 @@ class CustomImageDataset(Dataset):
             else:
                 feature = feature_bag
             return feature, label
-        
+
         feature_bag = torch.index_select(
             self._get_features_by_idx(idx),
             0,
@@ -221,9 +239,7 @@ class CustomImageDataset(Dataset):
         )
         if self.with_MK:
             if self._masking_MK:
-                feature = torch.cat(
-                    [feature_bag, self.mask_tensor.unsqueeze(0)], dim=0
-                )
+                feature = torch.cat([feature_bag, self.mask_tensor.unsqueeze(0)], dim=0)
             else:
                 feature = torch.cat([feature_bag, self.MK_features[idx]], dim=0)
         else:

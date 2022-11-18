@@ -38,10 +38,10 @@ CELL_TYPES: list[str] = [
 ]
 
 
-MODEL_P = "experiments0/trial2/pool-1659028139226.pth"
-DST_DIR = Path("att_rank0")
-SPLIT_P = "experiments0/trial2/split2.json"
-PRED_P = "experiments0/trial2/pool2.json"
+MODEL_P = "experiments1/trial0/pool-1668171909036.pth"
+DST_DIR = Path("att_rank1")
+SPLIT_P = "experiments1/trial0/split0.json"
+PRED_P = "experiments1/trial0/pool0.json"
 
 def bin_str(bins):
     out = []
@@ -278,7 +278,7 @@ def main():
         # train_indices = cache["train"]
     # val_set = data.Subset(dataset, val_indices)
     # train_set = data.Subset(dataset, train_indices)
-    
+    DST_DIR.mkdir(exist_ok=True)
     att_plotter = AttentionWeightPlotter()
     zip_ref = zipfile.ZipFile(Path("D:/DATA/cbp_cell_images.zip"), "r")
     # open image from zip file

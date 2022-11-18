@@ -28,6 +28,27 @@ from cpp_bag.performance import proba_to_dfDict
 TEMPLATE = "plotly_white"
 FONT = "Arial"
 
+def box_plot(df, x, y):
+    fig = px.box(df, x=x, y=y, color=x, points="all")
+    fig.update_layout(
+        template=TEMPLATE,
+        font_family="Arial",
+        width=1280,
+        height=600,
+        showlegend=True,
+        boxgap=0.75,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig.add_annotation(
+        x=1,
+        y=1.02,
+        xref="paper",
+        yref="paper",
+        align="left",
+        text="n=5 independent experiments",
+        showarrow=False,
+    )
+    return fig
 
 def heat_map(z, x, y, annotation_text):
     fig = ff.create_annotated_heatmap(
@@ -405,7 +426,7 @@ def plot_tag_perf_with_std(
                 marker_symbol=marker_symbols[2],
                 name=name_mapping(avg_title),
             )
-        ),
+        )
     fig.add_trace(
         go.Scatter(
             x=x,
