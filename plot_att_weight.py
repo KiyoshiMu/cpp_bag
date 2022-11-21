@@ -38,10 +38,10 @@ CELL_TYPES: list[str] = [
 ]
 
 
-MODEL_P = "experiments1/trial0/pool-1668171909036.pth"
+MODEL_P = "experiments2/trial0/pool-1669053060376.pth"
 DST_DIR = Path("att_rank1")
-SPLIT_P = "experiments1/trial0/split0.json"
-PRED_P = "experiments1/trial0/pool0.json"
+SPLIT_P = "experiments2/trial0/split0.json"
+PRED_P = "experiments2/trial0/pool0.json"
 
 def bin_str(bins):
     out = []
@@ -264,7 +264,7 @@ def main():
         data.FEAT_DIR,
         data.LABEL_DIR,
         bag_size=256,
-        cell_threshold=300,
+        cell_threshold=256,
         with_MK=WITH_MK,
         all_cells=all_cells,
         enable_mask=True

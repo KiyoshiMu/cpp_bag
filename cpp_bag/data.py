@@ -107,7 +107,7 @@ class CustomImageDataset(Dataset):
         feat_dir: Path,
         label_dir: Path,
         bag_size=256,
-        cell_threshold=300,
+        cell_threshold=256,
         with_MK=True,
         all_cells: Optional[list[list[CellInstance]]] = None,
         limit=None,

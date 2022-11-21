@@ -4,10 +4,28 @@ import numpy as np
 import pandas as pd
 from pytorch_metric_learning.utils.accuracy_calculator import AccuracyCalculator
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import f1_score
 
 from cpp_bag.io_utils import pkl_load, simplify_label
+from cpp_bag.performance import create_knn
 from cpp_bag.plot import box_plot
 
+
+def cal_micro_f1(
+    query,
+    reference,
+    query_labels,
+    reference_labels,
+    k=5
+):
+    knn = create_knn(reference, reference_labels)
+    y_pred = knn.predict(query)
+    f1_micro = f1_score(
+        query_labels,
+        y_pred,
+        average="weighted",
+    )
+    return f1_micro
 
 def cal_search_quality(
     query,
@@ -35,8 +53,9 @@ def cal_search_quality(
 
 if __name__ == "__main__":
     from collections import defaultdict
-    df_raw = defaultdict(list)
-    base = "experiments1"
+    df_search_raw = defaultdict(list)
+    df_f1_micro_raw = defaultdict(list)
+    base = "experiments2"
     for trial in range(5):
         marks = ["Hopfield on Cell Bags",  "HCT", "AvgPooling on Cell Bags",]
         for idx, mark in enumerate(marks) :
@@ -66,9 +85,17 @@ if __name__ == "__main__":
                 query_labels,
                 reference_labels,
             )
-            print(f"{mark}: {ret}")
-            df_raw[mark].append(ret["mean_average_precision"])
 
+            f1_micro = cal_micro_f1(
+                query,
+                reference,
+                query_labels,
+                reference_labels,
+            )
+
+            df_search_raw[mark].append(ret["mean_average_precision"])
+            df_f1_micro_raw[mark].append(f1_micro)
+            
             # generate random baseline
             if idx == len(marks) - 1:
                 random_query = np.random.rand(*query.shape)
@@ -80,17 +107,27 @@ if __name__ == "__main__":
                     reference_labels,
                 )
                 print(f"random: {random_ret}")
-                df_raw["Random"].append(random_ret["mean_average_precision"])
-
-    df = pd.DataFrame(df_raw)
+                df_search_raw["Random"].append(random_ret["mean_average_precision"])
+                f1_micro = cal_micro_f1(
+                    random_query,
+                    random_reference,
+                    query_labels,
+                    reference_labels,
+                )
+                print(f"random: {f1_micro}")
+                df_f1_micro_raw["Random"].append(f1_micro)
+                
+    df_f1 = pd.DataFrame(df_f1_micro_raw)
+    print(df_f1.agg(["mean", "std"]))
+    
+    df_search = pd.DataFrame(df_search_raw)
     # export to latex with 2 decimal places
-    df.to_latex(f"{base}/search_quality.tex", float_format="%.3f")
-
+    df_search.to_latex(f"{base}/search_quality.tex", float_format="%.3f")
     # use plotly boxplot to visualize
     
-    df = pd.melt(df, var_name="method", value_name="mAP@5")
-    fig = box_plot(df, x="method", y="mAP@5")
+    df_search = pd.melt(df_search, var_name="method", value_name="mAP@5")
+    fig = box_plot(df_search, x="method", y="mAP@5")
     # export to pdf
     fig.write_image(f"{base}/search_quality.pdf")
 
-    df.to_csv(f"{base}/search_quality.csv")
+    df_search.to_csv(f"{base}/search_quality.csv")

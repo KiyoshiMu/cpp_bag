@@ -14,7 +14,7 @@ from cpp_bag.model import BagPooling
 from cpp_bag.model import encoder_training
 from cpp_bag.plot import measure_slide_vectors
 
-BASE_DIR = "experiments1"
+BASE_DIR = "experiments2"
 
 class Planner:
     def __init__(self) -> None:
@@ -26,13 +26,14 @@ class Planner:
             data.FEAT_DIR,
             data.LABEL_DIR,
             bag_size=256,
-            cell_threshold=300,
+            cell_threshold=256,
             with_MK=self.with_mk,
             all_cells=all_cells,
+            remove_other=True,
         )
 
     def run(self, n=5):
-        sss = StratifiedShuffleSplit(n_splits=n, test_size=0.5, random_state=42)
+        sss = StratifiedShuffleSplit(n_splits=n, test_size=0.5, random_state=0)
         x = list(range(len(self.dataset)))
         y = self.dataset.targets
         for trial, (train_index, test_index) in enumerate(sss.split(x, y)):

@@ -5,7 +5,7 @@ import json
 from cpp_bag.label_map import ACCR_LABLE
 
 
-PRED_P = "experiments1/trial0/pool0.json"
+PRED_P = "experiments2/trial0/pool0.json"
 DOCS_DIR = Path("D:/DATA/Docs")
 DST_DIR = Path("D:/code/att/public/att_rank")
 SRC_DIR= Path("att_rank1")

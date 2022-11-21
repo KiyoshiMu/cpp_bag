@@ -12,7 +12,7 @@ METRICS_RENAME_MAP = {
     "fscore": "F1 Score",
     "Unnamed: 0": "Label",
 }
-BASE = Path("experiments1")
+BASE = Path("experiments2")
 TRAIL_N = 5
 LABEL_N = 5
 

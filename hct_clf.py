@@ -25,7 +25,7 @@ def main():
         data.FEAT_DIR,
         data.LABEL_DIR,
         bag_size=256,
-        cell_threshold=300,
+        cell_threshold=256,
         with_MK=False,
         all_cells=all_cells,
     )
@@ -36,7 +36,7 @@ def main():
 
     x_vec = count_2_vec(slide_portion, Lineage)
 
-    BASE_DIR = "experiments1"
+    BASE_DIR = "experiments2"
     base = Path(BASE_DIR)
     n = 5
     mark = "hct"

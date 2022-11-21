@@ -103,7 +103,7 @@ def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):
 
 
 def dummy_exp(refer_embed, refer_labels, test_embed, test_labels, dst):
-    dummy = DummyClassifier(strategy="stratified", random_state=42).fit(
+    dummy = DummyClassifier(strategy="stratified", random_state=0).fit(
         refer_embed,
         refer_labels,
     )

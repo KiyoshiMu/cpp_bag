@@ -26,7 +26,7 @@ def resampler(resample_times=10):
         data.FEAT_DIR,
         data.LABEL_DIR,
         bag_size=256,
-        cell_threshold=300,
+        cell_threshold=256,
         with_MK=with_MK,
         all_cells=all_cells,
     )

@@ -39,5 +39,5 @@ if __name__ == "__main__":
     #     dst=Path("OUT"),
     # )
 
-    draw_embedding("experiments1/trial0/pool0.json", suffix="_pool", write_pdf=True)
-    draw_embedding("experiments1/trial0/avg0.json", suffix="_avg", write_pdf=True)
+    draw_embedding("experiments2/trial0/pool0.json", suffix="_pool", write_pdf=True)
+    draw_embedding("experiments2/trial0/avg0.json", suffix="_avg", write_pdf=True)

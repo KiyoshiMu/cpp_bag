@@ -75,7 +75,7 @@ CELL_TYPES: list[CellType] = [
 
 class KMeanMask:
     def __init__(self, k=3) -> None:
-        self.kmeans = KMeans(n_clusters=k, random_state=42)
+        self.kmeans = KMeans(n_clusters=k, random_state=0)
 
     def save(self, path) -> None:
         with open(path, "wb") as f:
@@ -105,7 +105,7 @@ class ImScorer:
             data.FEAT_DIR,
             data.LABEL_DIR,
             bag_size=256,
-            cell_threshold=300,
+            cell_threshold=256,
             with_MK=WITH_MK,
             all_cells=all_cells,
             enable_mask=True,
@@ -422,17 +422,17 @@ def mask_effect_cell_ordered(effect_csv_p, dst, use_scale=True):
 
 
 if __name__ == "__main__":
-    # make_mask_embed(
-    #     "experiments1/trial0/pool-1668171909036.pth",
-    #     "experiments1/trial0/split0.json",
-    #     mask_dir=Path("mask_n1"),
-    #     subtype_k=0,
-    # )
-    # diff_mask_embed("mask_n1/result", "experiments1/trial0/train0_pool.pkl", "experiments1/trial0/val0_pool.pkl", dst=Path("mask_n1/mask_diff"))
-    # mask_effect_heat_map("mask_n1/mask_diff/mask_effect.csv", "mask_n1/mask_effect.pdf")
-    mask_effect_cell_ordered(
-        "mask_n1/mask_diff/mask_effect.csv", "mask_n1/mask_effect_cell.pdf",
+    make_mask_embed(
+        "experiments2/trial0/pool-1669053060376.pth",
+        "experiments2/trial0/split0.json",
+        mask_dir=Path("mask_n2"),
+        subtype_k=0,
     )
-    pd.read_csv("mask_n1/mask_diff/mask_effect.csv").rename(ACCR_LABLE, axis=1).to_latex(
-        "mask_n1/mask_effect.tex", index=False, float_format="%.3e"
+    diff_mask_embed("mask_n2/result", "experiments2/trial0/train0_pool.pkl", "experiments2/trial0/val0_pool.pkl", dst=Path("mask_n2/mask_diff"))
+    mask_effect_heat_map("mask_n2/mask_diff/mask_effect.csv", "mask_n2/mask_effect.pdf")
+    mask_effect_cell_ordered(
+        "mask_n2/mask_diff/mask_effect.csv", "mask_n2/mask_effect_cell.pdf",
+    )
+    pd.read_csv("mask_n2/mask_diff/mask_effect.csv").rename(ACCR_LABLE, axis=1).to_latex(
+        "mask_n2/mask_effect.tex", index=False, float_format="%.3e"
     )
