@@ -32,8 +32,10 @@ def cal_search_quality(
     reference,
     query_labels,
     reference_labels,
-    k=5
+    k=10
 ):
+    reference = reference / np.linalg.norm(reference, axis=1, keepdims=True)
+    query = query / np.linalg.norm(query, axis=1, keepdims=True)
     accuracy_calculator = AccuracyCalculator(
         include=("mean_average_precision",),
         exclude=(),
@@ -106,7 +108,6 @@ if __name__ == "__main__":
                     query_labels,
                     reference_labels,
                 )
-                print(f"random: {random_ret}")
                 df_search_raw["Random"].append(random_ret["mean_average_precision"])
                 f1_micro = cal_micro_f1(
                     random_query,
@@ -114,13 +115,13 @@ if __name__ == "__main__":
                     query_labels,
                     reference_labels,
                 )
-                print(f"random: {f1_micro}")
                 df_f1_micro_raw["Random"].append(f1_micro)
                 
     df_f1 = pd.DataFrame(df_f1_micro_raw)
-    print(df_f1.agg(["mean", "std"]))
+    print("df_f1", df_f1.agg(["mean", "std"]))
     
     df_search = pd.DataFrame(df_search_raw)
+    print("df_search",df_search.agg(["mean", "std"]))
     # export to latex with 2 decimal places
     df_search.to_latex(f"{base}/search_quality.tex", float_format="%.3f")
     # use plotly boxplot to visualize

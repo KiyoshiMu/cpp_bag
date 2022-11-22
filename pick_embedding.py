@@ -9,8 +9,8 @@ def draw_embedding(df_p, suffix="", write_pdf=False, write_html=False):
         marks=[
             AnnoMark("19_0487_AS", "A"),
             AnnoMark("18_0118_AS", "B"),
-            AnnoMark("18_0209_AS", "C"),
-            AnnoMark("19_0417_AS", "D"),
+            AnnoMark("18_0175_AS", "C"),
+            AnnoMark("18_0188_AS", "D"),
         ],
     )
     parent_dir = Path(df_p).parent.parent
