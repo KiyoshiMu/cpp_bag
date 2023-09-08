@@ -7,9 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyClassifier
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 from sklearn.neighbors import KNeighborsClassifier
-
 
 
 def load_size(fp="data/slide_size.csv"):
@@ -92,10 +91,56 @@ def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):
         y_pred,
         labels=unique_labels,
     )
+    cm = confusion_matrix(y_true, y_pred)
+    sensitivity_list = []
+    specificity_list = []
+    tp_list = []
+    fn_list = []
+    fp_list = []
+    tn_list = []
+
+    for i in range(len(unique_labels)):
+        # True Positives (TP)
+        tp = cm[i, i]
+
+        # False Negatives (FN)
+        fn = np.sum(cm[i, :]) - tp
+
+        # False Positives (FP)
+        fp = np.sum(cm[:, i]) - tp
+
+        # True Negatives (TN)
+        tn = np.sum(cm) - (tp + fn + fp)
+
+        # Sensitivity (True Positive Rate or Recall)
+        sensitivity = tp / (tp + fn)
+
+        # Specificity
+        specificity = tn / (tn + fp)
+
+        # Append values to respective lists
+        tp_list.append(tp)
+        fn_list.append(fn)
+        fp_list.append(fp)
+        tn_list.append(tn)
+        sensitivity_list.append(sensitivity)
+        specificity_list.append(specificity)
+
+    # print(recall, sensitivity)
     # print(precision, recall, fscore)
     if to_csv:
         metric_df = pd.DataFrame(
-            dict(precision=precision, recall=recall, fscore=fscore),
+            dict(
+                precision=precision,
+                # recall=recall,
+                fscore=fscore,
+                sensitivity=sensitivity_list,
+                specificity=specificity_list,
+                tp=tp_list,
+                fn=fn_list,
+                fp=fp_list,
+                tn=tn_list,
+            ),
             index=unique_labels,
         )
 

@@ -1,4 +1,4 @@
-"""Measure search Top5 query accuracy"""
+"""Measure search Top10 query accuracy"""
 
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import f1_score
 
 from cpp_bag.io_utils import pkl_load, simplify_label
-from cpp_bag.performance import create_knn
+from cpp_bag.performance import create_knn, dummy_exp, dump_metric
 from cpp_bag.plot import box_plot
 
 
@@ -16,7 +16,6 @@ def cal_micro_f1(
     reference,
     query_labels,
     reference_labels,
-    k=5
 ):
     knn = create_knn(reference, reference_labels)
     y_pred = knn.predict(query)
@@ -52,6 +51,11 @@ def cal_search_quality(
     )
     return ret
 
+naming_map = {
+    "Hopfield on Cell Bags": "pool",
+    "rHCT": "hct",
+    "AvgPooling on Cell Bags": "avg",
+}
 
 if __name__ == "__main__":
     from collections import defaultdict
@@ -59,7 +63,7 @@ if __name__ == "__main__":
     df_f1_micro_raw = defaultdict(list)
     base = "experiments2"
     for trial in range(5):
-        marks = ["Hopfield on Cell Bags",  "HCT", "AvgPooling on Cell Bags",]
+        marks = ["Hopfield on Cell Bags",  "rHCT", "AvgPooling on Cell Bags",]
         for idx, mark in enumerate(marks) :
             if mark == "Hopfield on Cell Bags":
                 train_pkl_p = f"{base}/trial{trial}/train{trial}_pool.pkl"
@@ -67,7 +71,7 @@ if __name__ == "__main__":
             elif mark == "AvgPooling on Cell Bags":
                 train_pkl_p = f"{base}/trial{trial}/train_avg{trial}_pool.pkl"
                 val_pkl_p = f"{base}/trial{trial}/val_avg{trial}_pool.pkl"
-            elif mark == "HCT":
+            elif mark == "rHCT":
                 train_pkl_p = f"{base}/trial{trial}/train{trial}_hct.pkl"
                 val_pkl_p = f"{base}/trial{trial}/val{trial}_hct.pkl"
             else:
@@ -98,6 +102,11 @@ if __name__ == "__main__":
             df_search_raw[mark].append(ret["mean_average_precision"])
             df_f1_micro_raw[mark].append(f1_micro)
             
+            knn = create_knn(reference, train_label)
+            classes_ = knn.classes_
+            preds = knn.predict(query)
+            dump_metric(val_label, preds, classes_, f"clf_ret/{naming_map[mark]}{trial}_metric.csv")
+            
             # generate random baseline
             if idx == len(marks) - 1:
                 random_query = np.random.rand(*query.shape)
@@ -117,6 +126,8 @@ if __name__ == "__main__":
                 )
                 df_f1_micro_raw["Random"].append(f1_micro)
                 
+                dummy_exp(reference, train_label, query, val_label, f"clf_ret/dummy{trial}_metric.csv")
+                
     df_f1 = pd.DataFrame(df_f1_micro_raw)
     print("df_f1", df_f1.agg(["mean", "std"]))
     
@@ -126,8 +137,8 @@ if __name__ == "__main__":
     df_search.to_latex(f"{base}/search_quality.tex", float_format="%.3f")
     # use plotly boxplot to visualize
     
-    df_search = pd.melt(df_search, var_name="method", value_name="mAP@5")
-    fig = box_plot(df_search, x="method", y="mAP@5")
+    df_search = pd.melt(df_search, var_name="method", value_name="mAP@10")
+    fig = box_plot(df_search, x="method", y="mAP@10")
     # export to pdf
     fig.write_image(f"{base}/search_quality.pdf")
 

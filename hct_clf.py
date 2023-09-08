@@ -51,9 +51,9 @@ def main():
         y_train = labels[train_index]
         y_test = labels[test_index]
 
-        knn = create_knn(x_train, y_train)
         pkl_dump(dict(embed_pool=x_train, labels=y_train, index=train_index), dst_dir / f"train{trial}_{mark}.pkl") 
         pkl_dump(dict(embed_pool=x_test, labels=y_test, index=test_index), dst_dir / f"val{trial}_{mark}.pkl")
+        knn = create_knn(x_train, y_train)
         classes_ = knn.classes_
         preds = knn.predict(x_test)
         dump_metric(y_test, preds, classes_, dst_dir / f"{mark}{trial}_metric.csv")

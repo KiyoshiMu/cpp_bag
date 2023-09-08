@@ -8,24 +8,30 @@ from cpp_bag.plot import ACCR_LABLE, name_mapping, plot_tag_perf_with_std
 
 METRICS_RENAME_MAP = {
     "precision": "Precision",
-    "recall": "Recall",
+    # "recall": "Recall",
+    "sensitivity": "Sensitivity",
+    "specificity": "Specificity",
     "fscore": "F1 Score",
     "Unnamed: 0": "Label",
 }
-BASE = Path("experiments2")
+# BASE = Path("experiments2")
 TRAIL_N = 5
 LABEL_N = 5
 
 
 def merge_metrics(
-    prefix="", random_csv=None, write_pdf=False, avg_csv=None, dst_dir=Path("."), hct_csv=None,
+    prefix="",
+    random_csv=None,
+    write_pdf=False,
+    avg_csv=None,
+    dst_dir=Path("."),
+    hct_csv=None,
 ):
-    metrics = ["Precision", "Recall", "F1 Score"]
+    metrics = ["Precision", "Sensitivity", "F1 Score", "Specificity"]
     dfs = []
 
     for trial in range(TRAIL_N):
-        DST = BASE / f"trial{trial}"
-        ret = pd.read_csv(DST / f"{prefix}{trial}_metric.csv")
+        ret = pd.read_csv(dst_dir / f"{prefix}{trial}_metric.csv")
         ret.rename(columns=METRICS_RENAME_MAP, inplace=True)
         ret["Trial"] = trial
         ret_melt = ret.melt(id_vars=["Label", "Trial"], value_vars=metrics)
@@ -85,20 +91,44 @@ def merge_metrics(
 
 def ret_to_latex(csvs, methods, dst_dir=Path(".")):
     dfs = []
-    for csv, method in zip(csvs ,methods) :
+    for csv, method in zip(csvs, methods):
         df = pd.read_csv(csv)
-        f1s = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["F1 Score_mean"], df["F1 Score_std"])]
-        precisions = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["Precision_mean"], df["Precision_std"])]
-        recalls = [f"{v:.3f}±{s:.3f}" for v, s in zip(df["Recall_mean"], df["Recall_std"])]
+        f1s = [
+            f"{v:.3f}±{s:.3f}" for v, s in zip(df["F1 Score_mean"], df["F1 Score_std"])
+        ]
+        precisions = [
+            f"{v:.3f}±{s:.3f}"
+            for v, s in zip(df["Precision_mean"], df["Precision_std"])
+        ]
+        recalls = [
+            f"{v:.3f}±{s:.3f}"
+            for v, s in zip(df["Sensitivity_mean"], df["Sensitivity_std"])
+        ]
+        specialities = [
+            f"{v:.3f}±{s:.3f}"
+            for v, s in zip(df["Specificity_mean"], df["Specificity_std"])
+        ]
         methods = [method] * len(f1s)
         labels = [ACCR_LABLE[l] for l in df["Label"]]
-        dfs.append(pd.DataFrame({"Label": labels, "F1 Score": f1s, "Precision": precisions, "Recall": recalls, "Method": methods, }))
+        dfs.append(
+            pd.DataFrame(
+                {
+                    "Label": labels,
+                    "F1 Score": f1s,
+                    "Precision": precisions,
+                    "Sensitivity": recalls,
+                    "Specificity": specialities,
+                    "Method": methods,
+                }
+            )
+        )
     df = pd.concat(dfs)
-    
-    df.to_latex(dst_dir/ "metrics_all.tex", index=False)
+
+    df.to_latex(dst_dir / "metrics_all.tex", index=False)
+
 
 if __name__ == "__main__":
-    dst_dir = BASE
+    dst_dir = Path("clf_ret")
     random_csv = merge_metrics(prefix="dummy", dst_dir=dst_dir)
     avg_csv = merge_metrics(prefix="avg", dst_dir=dst_dir)
     hct_csv = merge_metrics(prefix="hct", dst_dir=dst_dir)
@@ -111,6 +141,4 @@ if __name__ == "__main__":
         hct_csv=hct_csv,
     )
     csvs = sorted(dst_dir.glob("metrics*_T.csv"))
-    ret_to_latex(
-       csvs , [name_mapping(n.name) for n in csvs], dst_dir=dst_dir
-    )
+    ret_to_latex(csvs, [name_mapping(n.name) for n in csvs], dst_dir=dst_dir)

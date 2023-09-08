@@ -234,5 +234,5 @@ def add_pred_info(att_dir:Path, ret_p):
 
 
 if __name__ == "__main__":
-    main()
-    # add_pred_info(DST_DIR, PRED_P)
+    # main()
+    add_pred_info(DST_DIR, PRED_P)

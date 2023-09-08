@@ -197,7 +197,6 @@ def measure_slide_vectors(
     trial="",
     dummy_baseline=True,
     dst=Path("."),
-    out_distribute=None,
 ):
     train = pkl_load(train_pkl_p)
     refer_embed = train["embed_pool"]
@@ -210,16 +209,8 @@ def measure_slide_vectors(
     val_labels = [simplify_label(l) for l in val_full_label]
     val_names = val["index"]
     sizes = load_size()
-
-    if out_distribute is not None:
-        val_full_label = np.concatenate([val_full_label, ["OUT"]])
-        val_labels = np.concatenate([val_labels, ["OUT"]])
-        val_names = np.concatenate([val_names, ["OUT"]])
-        projection, reducer = arr_project(val_embed, return_reducer=True)
-        projection = np.concatenate([projection, reducer.transform([out_distribute])])
-        val_embed = np.concatenate([val_embed, [out_distribute]])
-    else:
-        projection = arr_project(val_embed)
+    
+    projection = arr_project(val_embed)
     pred_probs: np.ndarray = knn.predict_proba(val_embed)
     _df = proba_to_dfDict(pred_probs, classes_, val_labels)
     preds = knn.predict(val_embed)
@@ -317,7 +308,7 @@ def name_mapping(name):
     if "avg" in name:
         return "AvgPooling on Cell Bags"
     if "hct" in name:
-        return "HCT"
+        return "rHCT"
     return "Hopfield on Cell Bags"
 
 def plot_tag_perf_with_std(
@@ -348,7 +339,7 @@ def plot_tag_perf_with_std(
     #     line=dict(color="lightgray", width=2, dash="dash"),
     # )
     if show_recall_precision:
-        for idx, measure in enumerate(["Precision", "Recall"]):
+        for idx, measure in enumerate(["Precision", "Sensitivity"]):
             fig.add_trace(
                 go.Scatter(
                     x=x,

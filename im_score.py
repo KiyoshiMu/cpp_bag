@@ -251,10 +251,10 @@ class ImAnalyst:
         diff_df_csvs = list(diff_dir.glob("*_mask_*.csv"))
         cell_types = [_get_cell_type(csv_p) for csv_p in diff_df_csvs]
         slide_names = pd.read_csv(diff_df_csvs[0], index_col=0).index.to_list()
-        # !TODO ugly code
+        
         mask_cell_count = load_mask_cell_count(cell_types, slide_names, dst=diff_dir.parent / "result")
         print(mask_cell_count)
-        min_mask_cell_count = round(len(slide_names) * 0.5)
+        min_mask_cell_count = len(slide_names) # on average has more than one cell per slide
         print(min_mask_cell_count)
         mask_cell_count = {
             cell_type: count
@@ -268,12 +268,11 @@ class ImAnalyst:
             if cell_type not in mask_cell_count:
                 continue
 
-            effects = diff_df.iloc[:, :5].sum(axis=0) / mask_cell_count[cell_type]
-            # print(effects)
+            effects = diff_df.iloc[:, :5].mean(axis=0)
             mask_name = _get_cell_type(csv_p)
             mask_effect[mask_name] = list(effects)
         mask_effect_df = pd.DataFrame(mask_effect, index=self.classes_).transpose()
-        print(mask_effect_df)
+        # print(mask_effect_df)
         return mask_effect_df
 
 
@@ -422,12 +421,12 @@ def mask_effect_cell_ordered(effect_csv_p, dst, use_scale=True):
 
 
 if __name__ == "__main__":
-    make_mask_embed(
-        "experiments2/trial0/pool-1669053060376.pth",
-        "experiments2/trial0/split0.json",
-        mask_dir=Path("mask_n2"),
-        subtype_k=0,
-    )
+    # make_mask_embed(
+    #     "experiments2/trial0/pool-1669053060376.pth",
+    #     "experiments2/trial0/split0.json",
+    #     mask_dir=Path("mask_n2"),
+    #     subtype_k=0,
+    # )
     diff_mask_embed("mask_n2/result", "experiments2/trial0/train0_pool.pkl", "experiments2/trial0/val0_pool.pkl", dst=Path("mask_n2/mask_diff"))
     mask_effect_heat_map("mask_n2/mask_diff/mask_effect.csv", "mask_n2/mask_effect.pdf")
     mask_effect_cell_ordered(
