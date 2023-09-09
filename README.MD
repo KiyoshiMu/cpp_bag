@@ -31,10 +31,10 @@ Python Dependencies:
     tensorboard = ">=2.8.0"
     plotly = ">=5.6.0"
     scikit-learn = ">=1.0.2"
-    numba = ">=0.55.1"
+    numba = "^0.55.1"
     scipy = "^1.8.0"
-    umap-learn = ">=0.5.2"
-    pytorch-metric-learning = ">=1.2.0"
+    umap-learn = "^0.5.2"
+    pytorch-metric-learning = "^1.5.2"
     tqdm = "^4.63.0"
     kaleido = "^0.2.1"
 

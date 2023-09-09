@@ -304,7 +304,7 @@ def plot_embedding(df: pd.DataFrame, marks: Optional[list[AnnoMark]] = None):
 def name_mapping(name):
     name = name.lower()
     if "dummy" in name:
-        return "Empirical Inference"
+        return "Guessing"
     if "avg" in name:
         return "AvgPooling on Cell Bags"
     if "hct" in name:
@@ -445,7 +445,7 @@ def plot_tag_perf_with_std(
         width=1280,
         height=600,
         xaxis_title="Label",
-        yaxis_title="Metrics",
+        yaxis_title=main_metrics,
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )

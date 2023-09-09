@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyClassifier
-from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, classification_report
 from sklearn.neighbors import KNeighborsClassifier
 
 
@@ -126,7 +126,7 @@ def dump_metric(y_true, y_pred, unique_labels, dst, to_csv=True):
         sensitivity_list.append(sensitivity)
         specificity_list.append(specificity)
 
-    # print(recall, sensitivity)
+    # print(classification_report(y_true, y_pred, labels=unique_labels))
     # print(precision, recall, fscore)
     if to_csv:
         metric_df = pd.DataFrame(

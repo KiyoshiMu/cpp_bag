@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from cpp_bag.plot import ACCR_LABLE, name_mapping, plot_tag_perf_with_std
-
+from scipy import stats
 
 METRICS_RENAME_MAP = {
     "precision": "Precision",
@@ -127,6 +127,73 @@ def ret_to_latex(csvs, methods, dst_dir=Path(".")):
     df.to_latex(dst_dir / "metrics_all.tex", index=False)
 
 
+def average_metrics(csv_p):
+    # calculate the weighted average of precision, recall, specificity, fscore
+    df = pd.read_csv(csv_p)
+    df["support"] = df["tp"] + df["fn"]
+    df["weight"] = df["support"] / df["support"].sum()
+    precision = (df["precision"] * df["weight"]).sum()
+    sensitivity = (df["sensitivity"] * df["weight"]).sum()
+    specificity = (df["specificity"] * df["weight"]).sum()
+    fscore = (df["fscore"] * df["weight"]).sum()
+    return dict(
+        precision=precision,
+        sensitivity=sensitivity,
+        specificity=specificity,
+        fscore=fscore,
+    )
+
+
+def cv_agg(csvs, dst_dir, marker="pool"):
+    metrics = [average_metrics(csv_p) for csv_p in csvs]
+    df = pd.DataFrame(metrics)
+    df.to_csv(dst_dir / f"{marker}_cv_agg.csv")
+    df_agg = df.aggregate(["mean", "std"])
+    precision = f"{df_agg['precision']['mean']:.3f}±{df_agg['precision']['std']:.3f}"
+    sensitivity = (
+        f"{df_agg['sensitivity']['mean']:.3f}±{df_agg['sensitivity']['std']:.3f}"
+    )
+    specificity = (
+        f"{df_agg['specificity']['mean']:.3f}±{df_agg['specificity']['std']:.3f}"
+    )
+    fscore = f"{df_agg['fscore']['mean']:.3f}±{df_agg['fscore']['std']:.3f}"
+    return dict(
+        precision=precision,
+        sensitivity=sensitivity,
+        specificity=specificity,
+        fscore=fscore,
+    )
+
+
+def cv_agg_search(csv):
+    df = pd.read_csv(csv)
+    df_agg = df.groupby("method")["mAP@10"].agg(["mean", "std"])
+    pool = df_agg.loc["Hopfield on Cell Bags"]
+    hct = df_agg.loc["rHCT"]
+    avg = df_agg.loc["AvgPooling on Cell Bags"]
+    dummy = df_agg.loc["Random"]
+    aggs = [
+        f"{pool['mean']:.3f}±{pool['std']:.3f}",
+        f"{hct['mean']:.3f}±{hct['std']:.3f}",
+        f"{avg['mean']:.3f}±{avg['std']:.3f}",
+        f"{dummy['mean']:.3f}±{dummy['std']:.3f}",
+    ]
+    print(aggs)
+    g1 = df.loc[df["method"] == "Hopfield on Cell Bags", "mAP@10"]
+    g2 = df.loc[df["method"] == "rHCT", "mAP@10"]
+    print(stats.ttest_rel(g1, g2, alternative="greater"))
+
+    
+def cv_ttest(csv1, csv2):
+    df1 = pd.read_csv(csv1)
+    df2 = pd.read_csv(csv2)
+    for metric in df1.columns:
+        if metric.startswith("Unnamed"):
+            continue
+        print(metric)
+        print(stats.ttest_rel(df1[metric], df2[metric], alternative="greater"))
+
+
 if __name__ == "__main__":
     dst_dir = Path("clf_ret")
     random_csv = merge_metrics(prefix="dummy", dst_dir=dst_dir)
@@ -142,3 +209,31 @@ if __name__ == "__main__":
     )
     csvs = sorted(dst_dir.glob("metrics*_T.csv"))
     ret_to_latex(csvs, [name_mapping(n.name) for n in csvs], dst_dir=dst_dir)
+
+    cv_agg_search("experiments2/search_quality.csv")
+    pool_agg = cv_agg(
+        list(Path("clf_ret").glob("pool*_metric.csv")),
+        dst_dir=Path("clf_ret"),
+        marker="pool",
+    )
+    hct_agg = cv_agg(
+        list(Path("clf_ret").glob("hct*_metric.csv")),
+        dst_dir=Path("clf_ret"),
+        marker="hct",
+    )
+    avg_agg = cv_agg(
+        list(Path("clf_ret").glob("avg*_metric.csv")),
+        dst_dir=Path("clf_ret"),
+        marker="avg",
+    )
+    dummy_agg = cv_agg(
+        list(Path("clf_ret").glob("dummy*_metric.csv")),
+        dst_dir=Path("clf_ret"),
+        marker="dummy",
+    )
+    df = pd.DataFrame([pool_agg, hct_agg, avg_agg, dummy_agg])
+    df.index = ["Hopfield on Cell Bags", "rHCT", "AvgPooling on Cell Bags", "Guessing"]
+    df.columns = ["Precision", "Sensitivity", "Specificity", "F1 Score"]
+    df.to_csv(Path("clf_ret") / "cv_agg.csv")
+    df.to_latex(Path("clf_ret") / "cv_agg.tex")
+    cv_ttest("clf_ret/pool_cv_agg.csv", "clf_ret/hct_cv_agg.csv")
